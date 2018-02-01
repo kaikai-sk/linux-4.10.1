@@ -741,6 +741,13 @@ EXPORT_SYMBOL(fget_raw);
  *
  * The fput_needed flag returned by fget_light should be passed to the
  * corresponding fput_light.
+ * 
+ * 轻量级文件查找 - 如果fd表不共享，则不增加refcnt增量。
+ * 如果满足以下所有条件，则可以使用此代替fget：
+ * 1）在退出系统调用并将控制返回给用户空间之前，您必须调用fput_light（即，
+ * 在返回到用户空间后，您不记得返回的结构文件*）。
+ * 2）在对fget_light和fput_light的调用之间，您不能在返回的结构文件上调用filp_close。
+ * 3）您不能在fget_light和fput_light的调用之间克隆当前任务。
  */
 static unsigned long __fget_light(unsigned int fd, fmode_t mask)
 {
@@ -759,6 +766,7 @@ static unsigned long __fget_light(unsigned int fd, fmode_t mask)
 		return FDPUT_FPUT | (unsigned long)file;
 	}
 }
+
 unsigned long __fdget(unsigned int fd)
 {
 	return __fget_light(fd, FMODE_PATH);

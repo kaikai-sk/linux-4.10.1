@@ -1516,9 +1516,17 @@ struct task_struct {
 	 */
 	struct thread_info thread_info;
 #endif
+	//进程运行时状态：-1代表不可运行 0代表可运行 >0代表已停止
 	volatile long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
 	void *stack;
 	atomic_t usage;
+	/*
+	flags是进程当前的状态标志，具体如下：
+	0x00000002表示进程正在被创建；
+	0x00000004表示进程正准备退出；
+	0x00000040 表示此进程被fork出，但是并没有执行exec；
+	0x00000400表示此进程由于其他进程发送相关信号而被杀死 。
+	*/
 	unsigned int flags;	/* per process flags, defined below */
 	unsigned int ptrace;
 
@@ -1537,6 +1545,7 @@ struct task_struct {
 	int on_rq;
 
 	int prio, static_prio, normal_prio;
+	//表示进程的运行优先级
 	unsigned int rt_priority;
 	const struct sched_class *sched_class;
 	struct sched_entity se;
@@ -1581,7 +1590,7 @@ struct task_struct {
 	struct plist_node pushable_tasks;
 	struct rb_node pushable_dl_tasks;
 #endif
-
+	//mm mm_struct结构体，该结构记录了进程内存的使用情况
 	struct mm_struct *mm, *active_mm;
 	/* per-thread vma caching */
 	u32 vmacache_seqnum;
@@ -1625,7 +1634,9 @@ struct task_struct {
 
 	struct restart_block restart_block;
 
+	//进程id
 	pid_t pid;
+	//进程组号
 	pid_t tgid;
 
 #ifdef CONFIG_CC_STACKPROTECTOR
@@ -1637,13 +1648,20 @@ struct task_struct {
 	 * older sibling, respectively.  (p->father can be replaced with
 	 * p->real_parent->pid)
 	 */
+	//该进程的亲生父亲，不管其是否被“寄养”
 	struct task_struct __rcu *real_parent; /* real parent process */
+	//parent是该进程现在的父进程，可能是“继父”
 	struct task_struct __rcu *parent; /* recipient of SIGCHLD, wait4() reports */
 	/*
 	 * children/sibling forms the list of my natural children
 	 */
+	 //这里children指的是该进程孩子的链表，可以得到所有孩子的进程描述符，
+	 //但是需使用list_for_each和list_entry，list_entry其实直接使用了container_of
 	struct list_head children;	/* list of my children */
+	//sibling该进程兄弟的链表，也就是其父亲的所有孩子的链表。用法与children相似。
 	struct list_head sibling;	/* linkage in my parent's children list */
+	////这个是主线程的进程描述符，也许你会奇怪，为什么线程用进程描述符表示，因为linux并没有单独实现线程的相关结构体，
+	//只是用一个进程来代替线程，然后对其做一些特殊的处理。
 	struct task_struct *group_leader;	/* threadgroup leader */
 
 	/*
@@ -1656,14 +1674,19 @@ struct task_struct {
 
 	/* PID/PID hash table linkage. */
 	struct pid_link pids[PIDTYPE_MAX];
+
+	//这个是该进程所有线程的链表。
 	struct list_head thread_group;
+
 	struct list_head thread_node;
 
 	struct completion *vfork_done;		/* for vfork() */
 	int __user *set_child_tid;		/* CLONE_CHILD_SETTID */
 	int __user *clear_child_tid;		/* CLONE_CHILD_CLEARTID */
 
+	//顾名思义，这个是该进程使用cpu时间的信息，utime是在用户态下执行的时间，stime是在内核态下执行的时间。
 	cputime_t utime, stime;
+	
 #ifdef CONFIG_ARCH_HAS_SCALED_CPUTIME
 	cputime_t utimescaled, stimescaled;
 #endif
@@ -1686,8 +1709,12 @@ struct task_struct {
 	atomic_t tick_dep_mask;
 #endif
 	unsigned long nvcsw, nivcsw; /* context switch counts */
+
+	//下面的是启动的时间，只是时间基准不一样。
 	u64 start_time;		/* monotonic time in nsec */
 	u64 real_start_time;	/* boot based time in nsec */
+
+	
 /* mm fault and swap info: this can arguably be seen as either mm-specific or thread-specific */
 	unsigned long min_flt, maj_flt;
 
@@ -1700,6 +1727,7 @@ struct task_struct {
 					 * credentials (COW) */
 	const struct cred __rcu *cred;	/* effective (overridable) subjective task
 					 * credentials (COW) */
+	//comm是保存该进程名字的字符数组，长度最长为15，因为TASK_COMM_LEN为16。
 	char comm[TASK_COMM_LEN]; /* executable name excluding path
 				     - access with [gs]et_task_comm (which lock
 				       it with task_lock())
@@ -1716,12 +1744,15 @@ struct task_struct {
 	unsigned long last_switch_count;
 #endif
 /* filesystem information */
+/* 文件系统相关信息结构体*/
 	struct fs_struct *fs;
 /* open file information */
+	/* 打开的文件相关信息结构体*/
 	struct files_struct *files;
 /* namespaces */
 	struct nsproxy *nsproxy;
 /* signal handlers */
+	/* 信号相关信息的句柄*/
 	struct signal_struct *signal;
 	struct sighand_struct *sighand;
 
@@ -1932,6 +1963,7 @@ struct task_struct {
 	 * time slack values; these are used to round up poll() and
 	 * select() etc timeout values. These are in nanoseconds.
 	 */
+	  /*这些是松弛时间值，用来规定select()和poll()的超时时间，单位是纳秒nanoseconds */
 	u64 timer_slack_ns;
 	u64 default_timer_slack_ns;
 
@@ -1998,8 +2030,11 @@ struct task_struct {
 	/* A live task holds one reference. */
 	atomic_t stack_refcount;
 #endif
+
 /* CPU-specific state of this task */
+	/*该进程在特定CPU下的状态*/
 	struct thread_struct thread;
+
 /*
  * WARNING: on x86, 'thread_struct' contains a variable-sized
  * structure.  It *MUST* be at the end of 'task_struct'.

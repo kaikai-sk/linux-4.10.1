@@ -487,11 +487,13 @@ EXPORT_SYMBOL(vfs_read);
 
 static ssize_t new_sync_write(struct file *filp, const char __user *buf, size_t len, loff_t *ppos)
 {
+	//临时变量iov，该临时变量记录了用户空间缓冲区地址buf和所要写的字节数len
 	struct iovec iov = { .iov_base = (void __user *)buf, .iov_len = len };
 	struct kiocb kiocb;
 	struct iov_iter iter;
 	ssize_t ret;
 
+	//初始化异步IO数据结构
 	init_sync_kiocb(&kiocb, filp);
 	kiocb.ki_pos = *ppos;
 	iov_iter_init(&iter, WRITE, &iov, 1, len);
@@ -545,6 +547,7 @@ ssize_t vfs_write(struct file *file, const char __user *buf, size_t count, loff_
 {
 	ssize_t ret;
 
+	//检查文件模式是不是写
 	if (!(file->f_mode & FMODE_WRITE))
 		return -EBADF;
 	if (!(file->f_mode & FMODE_CAN_WRITE))
@@ -552,6 +555,7 @@ ssize_t vfs_write(struct file *file, const char __user *buf, size_t count, loff_
 	if (unlikely(!access_ok(VERIFY_READ, buf, count)))
 		return -EFAULT;
 
+    //从当前位置f_pos开始的count个字节是否对写操作加上了“强制锁”
 	ret = rw_verify_area(WRITE, file, pos, count);
 	if (!ret) {
 		if (count > MAX_RW_COUNT)
@@ -581,16 +585,23 @@ static inline void file_pos_write(struct file *file, loff_t pos)
 	file->f_pos = pos;
 }
 
+
 SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 {
 	struct fd f = fdget_pos(fd);
 	ssize_t ret = -EBADF;
 
-	if (f.file) {
+	if (f.file) 
+	{
+		//读取/更新当前文件的读位置
 		loff_t pos = file_pos_read(f.file);
+		//vfs_read()是实现主体
 		ret = vfs_read(f.file, buf, count, &pos);
 		if (ret >= 0)
+		{
+			//读取/更新当前文件的写位置
 			file_pos_write(f.file, pos);
+		}
 		fdput_pos(f);
 	}
 	return ret;
@@ -602,10 +613,13 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
 	struct fd f = fdget_pos(fd);
 	ssize_t ret = -EBADF;
 
-	if (f.file) {
+	if (f.file) 
+	{
+		//是读取当前文件的读写位置
 		loff_t pos = file_pos_read(f.file);
 		ret = vfs_write(f.file, buf, count, &pos);
 		if (ret >= 0)
+			//是根据读文件结果，更新文件读写位置
 			file_pos_write(f.file, pos);
 		fdput_pos(f);
 	}

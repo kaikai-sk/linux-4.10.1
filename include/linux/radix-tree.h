@@ -124,6 +124,8 @@ struct radix_tree_root {
 	.rnode = NULL,							\
 }
 
+/* gfp_mask表示如何执行内存分配，如果操作（如：插入）以原子性上下文中执行，其值为GFP_ATOMIC*/
+/* 声明和初始化名为name的树*/
 #define RADIX_TREE(name, mask) \
 	struct radix_tree_root name = RADIX_TREE_INIT(mask)
 
@@ -297,15 +299,26 @@ int __radix_tree_create(struct radix_tree_root *root, unsigned long index,
 			void ***slotp);
 int __radix_tree_insert(struct radix_tree_root *, unsigned long index,
 			unsigned order, void *);
+
+//radix_tree_insert插入条目item到树root中，如果插入条目中内存分配错误，
+//将返回错误-ENOMEM。该函数不能覆盖写正存在的条目。如果索引键值index已存在于树中，返回错误-EEXIST。
+//插入操作成功是，返回0。
 static inline int radix_tree_insert(struct radix_tree_root *root,
 			unsigned long index, void *entry)
 {
 	return __radix_tree_insert(root, index, 0, entry);
 }
+			
 void *__radix_tree_lookup(struct radix_tree_root *root, unsigned long index,
 			  struct radix_tree_node **nodep, void ***slotp);
+
+/*在树中查找指定键值的条目，查找成功，返回该条目的指针，否则，返回NULL*/			
 void *radix_tree_lookup(struct radix_tree_root *, unsigned long);
+
+/*返回指向slot的指针，该slot含有指向查找到条目的指针*/
 void **radix_tree_lookup_slot(struct radix_tree_root *, unsigned long);
+
+
 typedef void (*radix_tree_update_node_t)(struct radix_tree_node *, void *);
 void __radix_tree_replace(struct radix_tree_root *root,
 			  struct radix_tree_node *node,
@@ -320,7 +333,11 @@ void __radix_tree_delete_node(struct radix_tree_root *root,
 			      radix_tree_update_node_t update_node,
 			      void *private);
 void *radix_tree_delete_item(struct radix_tree_root *, unsigned long, void *);
+
+//函数radix_tree_delete删除与索引键值index相关的条目，如果删除条目在树中，返回该条目的指针，否则返回NULL。
 void *radix_tree_delete(struct radix_tree_root *, unsigned long);
+
+
 void radix_tree_clear_tags(struct radix_tree_root *root,
 			   struct radix_tree_node *node,
 			   void **slot);
@@ -330,7 +347,13 @@ unsigned int radix_tree_gang_lookup(struct radix_tree_root *root,
 unsigned int radix_tree_gang_lookup_slot(struct radix_tree_root *root,
 			void ***results, unsigned long *indices,
 			unsigned long first_index, unsigned int max_items);
+
+//函数radix_tree_preload尝试用给定的gfp_mask分配足够的内存，保证下一个插入操作不会失败。
+//在调用插入操作函数之前调用此函数，分配的结构将存放在每CPU变量中。
+//函数radix_tree_preload操作成功后，将完毕内核抢占。因此，在插入操作完成之后，
+//用户应调用函数radix_tree_preload_end打开内核抢占。
 int radix_tree_preload(gfp_t gfp_mask);
+
 int radix_tree_maybe_preload(gfp_t gfp_mask);
 int radix_tree_maybe_preload_order(gfp_t gfp_mask, int order);
 void radix_tree_init(void);
@@ -556,4 +579,27 @@ radix_tree_next_slot(void **slot, struct radix_tree_iter *iter, unsigned flags)
  */
 #define radix_tree_for_each_contig(slot, root, iter, start)		\
 	for (slot = radix_tree_iter_init(iter, start) ;			\
-	     slot || (slot = radix_tree_next_chunk(r
+	     slot || (slot = radix_tree_next_chunk(root, iter,		\
+				RADIX_TREE_ITER_CONTIG)) ;		\
+	     slot = radix_tree_next_slot(slot, iter,			\
+				RADIX_TREE_ITER_CONTIG))
+
+/**
+ * radix_tree_for_each_tagged - iterate over tagged slots
+ *
+ * @slot:	the void** variable for pointer to slot
+ * @root:	the struct radix_tree_root pointer
+ * @iter:	the struct radix_tree_iter pointer
+ * @start:	iteration starting index
+ * @tag:	tag index
+ *
+ * @slot points to radix tree slot, @iter->index contains its index.
+ */
+#define radix_tree_for_each_tagged(slot, root, iter, start, tag)	\
+	for (slot = radix_tree_iter_init(iter, start) ;			\
+	     slot || (slot = radix_tree_next_chunk(root, iter,		\
+			      RADIX_TREE_ITER_TAGGED | tag)) ;		\
+	     slot = radix_tree_next_slot(slot, iter,			\
+				RADIX_TREE_ITER_TAGGED | tag))
+
+#endif /* _LINUX_RADIX_TREE_H */

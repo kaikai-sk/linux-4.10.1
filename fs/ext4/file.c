@@ -227,13 +227,19 @@ ext4_file_write_iter(struct kiocb *iocb, struct iov_iter *from)
 	 * Unaligned direct AIO must be serialized among each other as zeroing
 	 * of partial blocks of two competing unaligned AIOs can result in data
 	 * corruption.
+	 * 未对齐的直接AIO必须彼此串行化，因为两个竞争性未对齐的AIO的部分块的归零可能导致数据损坏。
 	 */
+	 //首先要检查是否是ext4的extent模式
 	if (o_direct && ext4_test_inode_flag(inode, EXT4_INODE_EXTENTS) &&
 	    !is_sync_kiocb(iocb) &&
 	    ext4_unaligned_aio(inode, from, iocb->ki_pos)) {
 		unaligned_aio = 1;
 		ext4_unwritten_wait(inode);
 	}
+
+
+
+		
 
 	iocb->private = &overwrite;
 	/* Check whether we do a DIO overwrite or not */
