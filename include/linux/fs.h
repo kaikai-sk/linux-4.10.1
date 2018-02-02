@@ -583,6 +583,7 @@ struct inode {
 		const unsigned int i_nlink;
 		unsigned int __i_nlink;
 	};
+	//如果索引节点代表的并不是常规文件，而是某个设备，那就有设备号，这就是i_rdev
 	dev_t			i_rdev;
 	loff_t			i_size;
 	struct timespec		i_atime;
@@ -598,6 +599,7 @@ struct inode {
 #endif
 
 	/* Misc */
+	//如果istate的值等于I_DIRTY，该索引节点就是脏的，也就是说对应的磁盘索引节点必须更新。
 	unsigned long		i_state;
 	struct rw_semaphore	i_rwsem;
 
@@ -843,6 +845,7 @@ struct file {
 	} f_u;
 	struct path		f_path;
 	struct inode		*f_inode;	/* cached value */
+	//指向各种文件操作的指针
 	const struct file_operations	*f_op;
 
 	/*
@@ -1294,13 +1297,20 @@ struct sb_writers {
 	struct percpu_rw_semaphore	rw_sem[SB_FREEZE_LEVELS];
 };
 
+//VFS超级块
 struct super_block {
+	//指向超级块链表的指针，指向链表相邻元素的指针
 	struct list_head	s_list;		/* Keep this first */
+	//具体文件系统的块设备标识符。例如，对于dev/hda1,其设备标识符为0x301
 	dev_t			s_dev;		/* search index; _not_ kdev_t */
+	//块大小的值所占用的位数，例如，块大小1024字节，该值为10
 	unsigned char		s_blocksize_bits;
+	//以字节为单位的数据块的大小
 	unsigned long		s_blocksize;
 	loff_t			s_maxbytes;	/* Max file size */
+	//文件系统类型指针
 	struct file_system_type	*s_type;
+	//指向具体文件系统的用于超级块操作的函数集合
 	const struct super_operations	*s_op;
 	const struct dquot_operations	*dq_op;
 	const struct quotactl_ops	*s_qcop;
@@ -1333,7 +1343,13 @@ struct super_block {
 	char s_id[32];				/* Informational name */
 	u8 s_uuid[16];				/* UUID */
 
+	//指向具体文件系统的超级块
+	//假如超级块对象指的是ext2文件系统，该数据结构就指向ext2_sb_info数据结构
+	//该结构包括与磁盘分配位图等相关数据，不包含与VFS通用文件模型相关的数据
+	//通常为了提高效率，由s_fs_info字段所指向的数据被复制到内存。任何磁盘文件系统都需要访问和更改自己的磁盘
+	//分配位图，以便分配或者释放磁盘块。VFS允许这些文件系统直接对内存块的s_fs_info字段进行操作，而无需访问磁盘
 	void 			*s_fs_info;	/* Filesystem private info */
+	
 	unsigned int		s_max_links;
 	fmode_t			s_mode;
 
@@ -1652,6 +1668,7 @@ struct block_device_operations;
 
 struct iov_iter;
 
+//文件操作全是函数指针
 struct file_operations {
 	struct module *owner;
 	loff_t (*llseek) (struct file *, loff_t, int);
@@ -1692,18 +1709,25 @@ struct file_operations {
 			u64);
 };
 
-struct inode_operations {
+//索引节点操作表
+struct inode_operations 
+{
+	//查找一个索引节点所在的目录
 	struct dentry * (*lookup) (struct inode *,struct dentry *, unsigned int);
 	const char * (*get_link) (struct dentry *, struct inode *, struct delayed_call *);
 	int (*permission) (struct inode *, int);
 	struct posix_acl * (*get_acl)(struct inode *, int);
 
 	int (*readlink) (struct dentry *, char __user *,int);
-
+	//创建一个新的磁盘索引节点
 	int (*create) (struct inode *,struct dentry *, umode_t, bool);
+	//创建一个新的硬链接
 	int (*link) (struct dentry *,struct inode *,struct dentry *);
+	//删除一个硬链接
 	int (*unlink) (struct inode *,struct dentry *);
+	//为符号链接创建一个新的索引节点
 	int (*symlink) (struct inode *,struct dentry *,const char *);
+	//为目录项创建一个新的索引结点
 	int (*mkdir) (struct inode *,struct dentry *,umode_t);
 	int (*rmdir) (struct inode *,struct dentry *);
 	int (*mknod) (struct inode *,struct dentry *,umode_t,dev_t);
@@ -1761,14 +1785,18 @@ static inline int do_clone_file_range(struct file *file_in, loff_t pos_in,
 	return ret;
 }
 
-struct super_operations {
+//超级块操作表
+struct 
+super_operations {
    	struct inode *(*alloc_inode)(struct super_block *sb);
 	void (*destroy_inode)(struct inode *);
 
    	void (*dirty_inode) (struct inode *, int flags);
+	//把inode写回磁盘
 	int (*write_inode) (struct inode *, struct writeback_control *wbc);
 	int (*drop_inode) (struct inode *);
 	void (*evict_inode) (struct inode *);
+	//释放超级块对象
 	void (*put_super) (struct super_block *);
 	int (*sync_fs)(struct super_block *sb, int wait);
 	int (*freeze_super) (struct super_block *);
