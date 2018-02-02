@@ -839,10 +839,15 @@ static inline int ra_has_index(struct file_ra_state *ra, pgoff_t index)
 }
 
 struct file {
-	union {
+
+	union 
+	{
+		//链入到所属文件系统的超级块的s_files链表的“连接件”
 		struct llist_node	fu_llist;
+		//用于RCU机制的域
 		struct rcu_head 	fu_rcuhead;
 	} f_u;
+	//文件路径，包含这个文件的vfsmount以及和文件关联的dentry
 	struct path		f_path;
 	struct inode		*f_inode;	/* cached value */
 	//指向各种文件操作的指针
@@ -851,6 +856,7 @@ struct file {
 	/*
 	 * Protects f_ep_links, f_flags.
 	 * Must not be taken from IRQ context.
+	 * 用户保护的自旋锁
 	 */
 	spinlock_t		f_lock;
 	atomic_long_t		f_count;

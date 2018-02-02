@@ -82,32 +82,49 @@ extern struct dentry_stat_t dentry_stat;
 
 struct dentry {
 	/* RCU lookup touched fields */
-	unsigned int d_flags;		/* protected by d_lock */
+
+	/* protected by d_lock */
+	//目录项标志
+	unsigned int d_flags;		
+
 	seqcount_t d_seq;		/* per dentry seqlock */
+	//目录项形成的hash表
 	struct hlist_bl_node d_hash;	/* lookup hash list */
+	//父目录的目录项
 	struct dentry *d_parent;	/* parent directory */
+	//目录项名（可快速查找）
 	struct qstr d_name;
+
+	//与文件名关联的索引节点
 	struct inode *d_inode;		/* Where the name belongs to - NULL is
 					 * negative */
+	//短文件名
 	unsigned char d_iname[DNAME_INLINE_LEN];	/* small names */
 
 	/* Ref lookup also touches following */
 	struct lockref d_lockref;	/* per-dentry lock and refcount */
+	//操作目录项的函数
 	const struct dentry_operations *d_op;
+	//目录项树的根（即文件的超级块）
 	struct super_block *d_sb;	/* The root of the dentry tree */
 	unsigned long d_time;		/* used by d_revalidate */
+	//具体文件系统的数据
 	void *d_fsdata;			/* fs-specific data */
 
 	union {
+		//未使用的lru链表
 		struct list_head d_lru;		/* LRU list */
 		wait_queue_head_t *d_wait;	/* in-lookup ones only */
 	};
+	//父目录的子目录项所形成的链表
 	struct list_head d_child;	/* child of parent list */
+	//该目录项的子目录所形成的链表
 	struct list_head d_subdirs;	/* our children */
 	/*
 	 * d_alias and d_rcu can share memory
 	 */
 	union {
+		//索引节点别名的链表
 		struct hlist_node d_alias;	/* inode alias list */
 		struct hlist_bl_node d_in_lookup_hash;	/* only for in-lookup ones */
 	 	struct rcu_head d_rcu;
@@ -126,16 +143,23 @@ enum dentry_d_lock_class
 	DENTRY_D_LOCK_NESTED
 };
 
+//目录项操作表
 struct dentry_operations {
+	//判定目录项是否有效
 	int (*d_revalidate)(struct dentry *, unsigned int);
 	int (*d_weak_revalidate)(struct dentry *, unsigned int);
+	//生成一个hash值
 	int (*d_hash)(const struct dentry *, struct qstr *);
+	//比较两个文件名
 	int (*d_compare)(const struct dentry *,
 			unsigned int, const char *, const struct qstr *);
+	//删除d_count域为0的目录项对象
 	int (*d_delete)(const struct dentry *);
 	int (*d_init)(struct dentry *);
+	//释放一个目录项对象
 	void (*d_release)(struct dentry *);
 	void (*d_prune)(struct dentry *);
+	//丢弃目录项对应的索引节点
 	void (*d_iput)(struct dentry *, struct inode *);
 	char *(*d_dname)(struct dentry *, char *, int);
 	struct vfsmount *(*d_automount)(struct path *);
@@ -277,6 +301,7 @@ extern struct dentry *__d_lookup(const struct dentry *, const struct qstr *);
 extern struct dentry *__d_lookup_rcu(const struct dentry *parent,
 				const struct qstr *name, unsigned *seq);
 
+//目录项引用计数
 static inline unsigned d_count(const struct dentry *dentry)
 {
 	return dentry->d_lockref.count;
