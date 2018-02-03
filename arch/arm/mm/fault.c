@@ -219,6 +219,12 @@ static inline bool access_error(unsigned int fsr, struct vm_area_struct *vma)
 	return vma->vm_flags & mask ? false : true;
 }
 
+
+/*
+* 缺页异常主处理函数
+* 
+*
+*/
 static int __kprobes
 __do_page_fault(struct mm_struct *mm, unsigned long addr, unsigned int fsr,
 		unsigned int flags, struct task_struct *tsk)
@@ -254,6 +260,10 @@ out:
 	return fault;
 }
 
+//缺页异常处理程序
+//addr：当前进程执行时引起缺页的虚地址
+//regs:异常时的寄存器信息
+//
 static int __kprobes
 do_page_fault(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 {
@@ -262,6 +272,7 @@ do_page_fault(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 	int fault, sig, code;
 	unsigned int flags = FAULT_FLAG_ALLOW_RETRY | FAULT_FLAG_KILLABLE;
 
+	//kprobes不想钩住虚假的错误：
 	if (notify_page_fault(regs, fsr))
 		return 0;
 
