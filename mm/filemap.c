@@ -623,6 +623,8 @@ static int __add_to_page_cache_locked(struct page *page,
 			return error;
 	}
 
+	//1. 调用radix_tree_preload()函数，禁用内核抢占，并把一些空的radix_tree_node结构
+	//赋给每CPU变量radix_tree_preloads。
 	error = radix_tree_maybe_preload(gfp_mask & ~__GFP_HIGHMEM);
 	if (error) {
 		if (!huge)
@@ -634,6 +636,7 @@ static int __add_to_page_cache_locked(struct page *page,
 	page->mapping = mapping;
 	page->index = offset;
 
+	//2. 获取mapping->tree_lock自旋锁（radix_tree_preload（）函数已经禁用了内核抢占）
 	spin_lock_irq(&mapping->tree_lock);
 	error = page_cache_tree_insert(mapping, page, shadowp);
 	radix_tree_preload_end();
@@ -1431,10 +1434,11 @@ export:
 
 /**
  * find_get_pages - gang pagecache lookup
- * @mapping:	The address_space to search
- * @start:	The starting page index
- * @nr_pages:	The maximum number of pages
- * @pages:	Where the resulting pages are placed
+ * 在page cache中查找具有一组相邻索引的页
+ * @mapping:	The address_space to search 指向address_space对象的指针
+ * @start:	The starting page index 地址空间中相对于搜索起始位置的偏移量
+ * @nr_pages:	The maximum number of pages 所检索到页的最大数量
+ * @pages:	Where the resulting pages are placed 指向由该函数赋值的页描述符数组的指针
  *
  * find_get_pages() will search for and return a group of up to
  * @nr_pages pages in the mapping.  The pages are placed at @pages.

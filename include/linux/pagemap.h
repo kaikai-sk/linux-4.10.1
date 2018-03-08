@@ -244,8 +244,8 @@ struct page *pagecache_get_page(struct address_space *mapping, pgoff_t offset,
 
 /**
  * find_get_page - find and get a page reference
- * @mapping: the address_space to search
- * @offset: the page index
+ * @mapping: the address_space to search 指向address_space对象的指针
+ * @offset: the page index 偏移量
  *
  * Looks up the page cache slot at @mapping & @offset.  If there is a
  * page cache page, it is returned with an increased refcount.
