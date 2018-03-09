@@ -572,10 +572,14 @@ is_uncached_acl(struct posix_acl *acl)
  * the RCU path lookup and 'stat' data) fields at the beginning
  * of the 'struct inode'
  */
-struct inode {
+struct inode 
+{
+	//文件类型与访问权限
 	umode_t			i_mode;
 	unsigned short		i_opflags;
+	//所有者标识符
 	kuid_t			i_uid;
+	//组标识符
 	kgid_t			i_gid;
 	unsigned int		i_flags;
 
@@ -608,12 +612,21 @@ struct inode {
 	//如果索引节点代表的并不是常规文件，而是某个设备，那就有设备号，这就是i_rdev
 	dev_t			i_rdev;
 	loff_t			i_size;
+	//上次访问文件的时间
 	struct timespec		i_atime;
+	//上次写文件的时间
 	struct timespec		i_mtime;
+	//上次修改索引节点的时间
 	struct timespec		i_ctime;
 	spinlock_t		i_lock;	/* i_blocks, i_bytes, maybe i_size */
 	unsigned short          i_bytes;
+	/*
+		块的位数
+	*/
 	unsigned int		i_blkbits;
+	/*
+		文件的块数
+	*/
 	blkcnt_t		i_blocks;
 
 #ifdef __NEED_I_SIZE_ORDERED
@@ -627,7 +640,7 @@ struct inode {
 
 	unsigned long		dirtied_when;	/* jiffies of first dirtying */
 	unsigned long		dirtied_time_when;
-
+	//用于散列链表的指针
 	struct hlist_node	i_hash;
 	struct list_head	i_io_list;	/* backing dev IO list */
 #ifdef CONFIG_CGROUP_WRITEBACK
@@ -1340,30 +1353,45 @@ struct super_block {
 	struct file_system_type	*s_type;
 	//指向具体文件系统的用于超级块操作的函数集合
 	const struct super_operations	*s_op;
+	//磁盘限额处理方法
 	const struct dquot_operations	*dq_op;
+	//磁盘限额管理方法
 	const struct quotactl_ops	*s_qcop;
+	//网络文件系统使用的输出操作
 	const struct export_operations *s_export_op;
+	//安装标志
 	unsigned long		s_flags;
 	unsigned long		s_iflags;	/* internal SB_I_* flags */
+	//文件系统的魔数
 	unsigned long		s_magic;
+	//文件系统的根目录的目录项对象
 	struct dentry		*s_root;
+	//卸载所用的信号量
 	struct rw_semaphore	s_umount;
+	//引用计数器
 	int			s_count;
+	//次级引用计数器
 	atomic_t		s_active;
 #ifdef CONFIG_SECURITY
+	//指向超级块安全数据结构的指针
 	void                    *s_security;
 #endif
+	//指向超级块扩展树形结构的指针
 	const struct xattr_handler **s_xattr;
 
 	const struct fscrypt_operations	*s_cop;
 
+	//用于处理远程网络文件系统的匿名目录项的链表
 	struct hlist_bl_head	s_anon;		/* anonymous dentries for (nfs) exporting */
 	struct list_head	s_mounts;	/* list of mounts; _not_ for fs use */
+    //指向块设备驱动程序描述符的指针
 	struct block_device	*s_bdev;
 	struct backing_dev_info *s_bdi;
 	struct mtd_info		*s_mtd;
+	//用于给定文件系统类型的超级块对象链表的指针
 	struct hlist_node	s_instances;
 	unsigned int		s_quota_types;	/* Bitmask of supported quota types */
+	//磁盘限额的描述符
 	struct quota_info	s_dquot;	/* Diskquota specific options */
 
 	struct sb_writers	s_writers;
@@ -1382,7 +1410,9 @@ struct super_block {
 	fmode_t			s_mode;
 
 	/* Granularity of c/m/atime in ns.
-	   Cannot be worse than a second */
+	   Cannot be worse than a second 
+		时间戳的粒度（纳秒级）
+   */
 	u32		   s_time_gran;
 
 	/*
@@ -1745,8 +1775,11 @@ struct inode_operations
 	const char * (*get_link) (struct dentry *, struct inode *, struct delayed_call *);
 	int (*permission) (struct inode *, int);
 	struct posix_acl * (*get_acl)(struct inode *, int);
-
-	int (*readlink) (struct dentry *, char __user *,int);
+	/*
+		将目录项对象所指定的符号链接中对应的文件路径名拷贝到buffer
+		所指定的用户态内存区
+	*/
+	int (*readlink) (struct dentry * dentry, char __user * buffer ,int buflen);
 	//创建一个新的磁盘索引节点
 	int (*create) (struct inode *,struct dentry *, umode_t, bool);
 	//创建一个新的硬链接
@@ -1757,10 +1790,21 @@ struct inode_operations
 	int (*symlink) (struct inode *,struct dentry *,const char *);
 	//为目录项创建一个新的索引结点
 	int (*mkdir) (struct inode *,struct dentry *,umode_t);
+	/*
+		从一个目录删除子目录，子目录的名称包含在目录项对象中
+	*/
 	int (*rmdir) (struct inode *,struct dentry *);
+	/*
+		在某个目录中，为与目录项对象相关的特定文件创建一个新的磁盘索引节点。
+		其中参数mode和rdev分别表示文件的类型和设备的主次设备号。
+	*/
 	int (*mknod) (struct inode *,struct dentry *,umode_t,dev_t);
-	int (*rename) (struct inode *, struct dentry *,
-			struct inode *, struct dentry *, unsigned int);
+	/*
+		将old_dir目录下由old_dentry标识的文件移到new_dir目录下，新文件名
+		包含在new_dentry指向的目录项对象中
+	*/
+	int (*rename) (struct inode * old_dir, struct dentry * old_dentry,
+			struct inode * new_dir, struct dentry * new_dentry, unsigned int);
 	int (*setattr) (struct dentry *, struct iattr *);
 	int (*getattr) (struct vfsmount *mnt, struct dentry *, struct kstat *);
 	ssize_t (*listxattr) (struct dentry *, char *, size_t);
@@ -1815,32 +1859,66 @@ static inline int do_clone_file_range(struct file *file_in, loff_t pos_in,
 
 //超级块操作表
 struct 
-super_operations {
-   	struct inode *(*alloc_inode)(struct super_block *sb);
+super_operations 
+{
+	//为索引节点对象分配空间，包括具体文件系统的数据所需要的空间
+	struct inode *(*alloc_inode)(struct super_block *sb);
+	//撤销索引节点对象。包括具体文件系统的数据
 	void (*destroy_inode)(struct inode *);
-
+	//当索引节点对象被标记为脏（已修改）时调用。
+	//像Ext3这样的文件系统用它来更新磁盘上的文件系统日志
    	void (*dirty_inode) (struct inode *, int flags);
-	//把inode写回磁盘
+	//把inode写回磁盘。
+	//用通过传递参数指定的索引节点对象的内容更新一个文件系统的索引节点。
+	//索引节点对象的i_ino字段标识所涉及磁盘上文件系统的索引节点。
 	int (*write_inode) (struct inode *, struct writeback_control *wbc);
+	//在即将撤销索引节点时调用
+	/*
+		也就是说，当最后一个用户释放该索引节点时，实现该方法的文件系统通常使用genetic_drop_inode()
+		函数。该函数从VFS数据结构中移走对索引节点的每一个引用，如果索引节点不再出现在任何目录中，
+		则调用超级块方法delete_inode将它从文件系统中删除
+	*/
 	int (*drop_inode) (struct inode *);
 	void (*evict_inode) (struct inode *);
 	//释放超级块对象
 	void (*put_super) (struct super_block *);
+	/*
+		在清除文件系统来更新磁盘上的具体文件系统数据结构时调用
+		（由日志文件系统使用）
+	*/
 	int (*sync_fs)(struct super_block *sb, int wait);
 	int (*freeze_super) (struct super_block *);
 	int (*freeze_fs) (struct super_block *);
 	int (*thaw_super) (struct super_block *);
 	int (*unfreeze_fs) (struct super_block *);
+	/*
+		将文件系统的统计信息返回，填写在buf缓冲区中
+	*/
 	int (*statfs) (struct dentry *, struct kstatfs *);
+	/*
+		用新的选项重新安装文件系统（当某个安装选项必须被修改时被调用）
+	*/
 	int (*remount_fs) (struct super_block *, int *, char *);
+	/*
+		中断一个安装操作，因为相应的卸载操作已经开始（只在网络文件系统中使用）
+	*/
 	void (*umount_begin) (struct super_block *);
-
+	/*
+		显示特定文件系统的选项
+	*/
 	int (*show_options)(struct seq_file *, struct dentry *);
 	int (*show_devname)(struct seq_file *, struct dentry *);
 	int (*show_path)(struct seq_file *, struct dentry *);
 	int (*show_stats)(struct seq_file *, struct dentry *);
 #ifdef CONFIG_QUOTA
+	/*
+		限额系统使用该方法从文件中读取数据，
+		该文件详细说明了所在文件系统的限制
+	*/
 	ssize_t (*quota_read)(struct super_block *, int, char *, size_t, loff_t);
+	/*
+		限额系统使用该方法将数据写入文件中，该文件详细说明了所在文件系统的限制
+	*/
 	ssize_t (*quota_write)(struct super_block *, int, const char *, size_t, loff_t);
 	struct dquot **(*get_dquots)(struct inode *);
 #endif

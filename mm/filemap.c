@@ -278,6 +278,7 @@ void delete_from_page_cache(struct page *page)
 
 	freepage = mapping->a_ops->freepage;
 
+	//获取自旋锁并关中断
 	spin_lock_irqsave(&mapping->tree_lock, flags);
 	__delete_from_page_cache(page, NULL);
 	spin_unlock_irqrestore(&mapping->tree_lock, flags);
@@ -639,6 +640,7 @@ static int __add_to_page_cache_locked(struct page *page,
 	//2. 获取mapping->tree_lock自旋锁（radix_tree_preload（）函数已经禁用了内核抢占）
 	spin_lock_irq(&mapping->tree_lock);
 	error = page_cache_tree_insert(mapping, page, shadowp);
+	//重新启用内核抢占
 	radix_tree_preload_end();
 	if (unlikely(error))
 		goto err_insert;
@@ -1435,6 +1437,7 @@ export:
 /**
  * find_get_pages - gang pagecache lookup
  * 在page cache中查找具有一组相邻索引的页
+ 
  * @mapping:	The address_space to search 指向address_space对象的指针
  * @start:	The starting page index 地址空间中相对于搜索起始位置的偏移量
  * @nr_pages:	The maximum number of pages 所检索到页的最大数量
@@ -1460,7 +1463,8 @@ unsigned find_get_pages(struct address_space *mapping, pgoff_t start,
 		return 0;
 
 	rcu_read_lock();
-	radix_tree_for_each_slot(slot, &mapping->page_tree, &iter, start) {
+	radix_tree_for_each_slot(slot, &mapping->page_tree, &iter, start) 
+	{
 		struct page *head, *page;
 repeat:
 		page = radix_tree_deref_slot(slot);
@@ -1586,6 +1590,8 @@ EXPORT_SYMBOL(find_get_pages_contig);
 
 /**
  * find_get_pages_tag - find and return pages that match @tag
+ * 返回用tag参数标记的页
+ 
  * @mapping:	the address_space to search
  * @index:	the starting page index
  * @tag:	the tag index
@@ -1604,12 +1610,17 @@ unsigned find_get_pages_tag(struct address_space *mapping, pgoff_t *index,
 
 	if (unlikely(!nr_pages))
 		return 0;
-
+    //标记RCU读取端临界区的开始
 	rcu_read_lock();
+
+	//迭代符合标记的slot
+	//points to radix tree slot, @iter->index contains its index.
 	radix_tree_for_each_tagged(slot, &mapping->page_tree,
-				   &iter, *index, tag) {
+				   &iter, *index, tag)
+	{
 		struct page *head, *page;
 repeat:
+	    //解引用一个slot
 		page = radix_tree_deref_slot(slot);
 		if (unlikely(!page))
 			continue;
@@ -2499,8 +2510,12 @@ static struct page *do_read_cache_page(struct address_space *mapping,
 	struct page *page;
 	int err;
 repeat:
+	//调用find_get_page()检查页是否已经在page cache中
 	page = find_get_page(mapping, index);
-	if (!page) {
+	//如果不在page cache中
+	if (!page) 
+	{
+		//调用alloc_pages（）分配一个新页框
 		page = __page_cache_alloc(gfp | __GFP_COLD);
 		if (!page)
 			return ERR_PTR(-ENOMEM);
@@ -2513,7 +2528,7 @@ repeat:
 			return ERR_PTR(err);
 		}
 
-filler:
+filler://如果页不是最新的（PG_uptodate标志为0），就调用filler函数从磁盘读取该页
 		err = filler(data, page);
 		if (err < 0) {
 			put_page(page);
@@ -2587,10 +2602,12 @@ out:
 
 /**
  * read_cache_page - read into page cache, fill it if needed
+ * 确保高速缓存中包括最新版本的指定页
  * @mapping:	the page's address_space
  * @index:	the page index
- * @filler:	function to perform the read
+ * @filler:	function to perform the read 指向从磁盘读页数据函数的指针（通常是实现地址空间readpage方法的函数）
  * @data:	first arg to filler(data, page) function, often left as NULL
+ *          
  *
  * Read into the page cache. If a page already exists, and PageUptodate() is
  * not set, try to fill the page and wait for it to become unlocked.
@@ -3008,6 +3025,7 @@ EXPORT_SYMBOL(generic_file_write_iter);
  * try_to_release_page() - release old fs-specific metadata on a page
  *
  * @page: the page which the kernel is trying to free
+ *        页描述符的地址page
  * @gfp_mask: memory allocation flags (and I/O mode)
  *
  * The address_space is to try to release any data against the page
@@ -3026,11 +3044,20 @@ int try_to_release_page(struct page *page, gfp_t gfp_mask)
 	struct address_space * const mapping = page->mapping;
 
 	BUG_ON(!PageLocked(page));
+	/*
+		如果设置了页的PG-writeback标志，则返回0
+		（因为正在把页写回磁盘，所以不可能释放该页）
+	*/
 	if (PageWriteback(page))
 		return 0;
 
+	//如果定义了块设备address_space对象的releasepage方法，就调用它
+	//通常没有为块设备定义的releasepage方法
 	if (mapping && mapping->a_ops->releasepage)
 		return mapping->a_ops->releasepage(page, gfp_mask);
+	/*
+		调用try_to_free_buffers，并返回错误代码
+	*/
 	return try_to_free_buffers(page);
 }
 

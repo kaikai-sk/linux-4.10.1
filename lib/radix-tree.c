@@ -1263,9 +1263,9 @@ int radix_tree_split(struct radix_tree_root *root, unsigned long index,
 
 /**
  *	radix_tree_tag_set - set a tag on a radix tree node
- *	@root:		radix tree root
- *	@index:		index key
- *	@tag:		tag index
+ *	@root:		radix tree root  基树的根
+ *	@index:		index key   页的索引
+ *	@tag:		tag index   要设置的标记的类型（PAGECACHE_TAG_DIRTY和PAGECACHE_TAG_WRITEBACK）
  *
  *	Set the search tag (which must be < RADIX_TREE_MAX_TAGS)
  *	corresponding to @index in the radix tree.  From

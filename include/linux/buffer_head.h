@@ -16,21 +16,35 @@
 
 #ifdef CONFIG_BLOCK
 
-enum bh_state_bits {
+//缓冲区首部的通用标志
+enum bh_state_bits
+{
+	//缓冲区包含有效数据时被置位
 	BH_Uptodate,	/* Contains valid data */
+	//如果缓冲区脏就被置位（表示缓冲区中的数据必须写回块设备）
 	BH_Dirty,	/* Is dirty */
+	//如果缓冲区加锁就置位，通常发生在缓冲区进行磁盘传输时
 	BH_Lock,	/* Is locked */
+	//如果已经为初始化缓冲区而请求数据传输就置位
 	BH_Req,		/* Has been submitted for I/O */
 	BH_Uptodate_Lock,/* Used by the first bh in a page, to serialise
 			  * IO completion of other buffers in the page
 			  */
 
+	//如果缓冲区被映射到磁盘就置位，即
+	//如果相应的缓冲区首部的b_bdev和b_blocknr是有效的就置位
 	BH_Mapped,	/* Has a disk mapping */
+	//如果相应的块刚被分配而还没有被访问过就置位
 	BH_New,		/* Disk mapping was newly created by get_block */
+	//如果异步地读缓冲区就置位
 	BH_Async_Read,	/* Is under end_buffer_async_read I/O */
+	//如果异步地写缓冲区就置位
 	BH_Async_Write,	/* Is under end_buffer_async_write I/O */
+	//如果还没有在磁盘上分配缓冲区就置位
 	BH_Delay,	/* Buffer is not yet allocated on disk */
+	//如果两个相邻的块在其中一个提交之后不再相邻就置位
 	BH_Boundary,	/* Block is followed by a discontiguity */
+	//如果写块时出现IO错误就置位
 	BH_Write_EIO,	/* I/O error on write */
 	BH_Unwritten,	/* Buffer is allocated on disk but not written */
 	BH_Quiet,	/* Buffer Error Prinks to be quiet */
@@ -59,18 +73,29 @@ typedef void (bh_end_io_t)(struct buffer_head *bh, int uptodate);
  * a page (via a page_mapping) and for wrapping bio submission
  * for backward compatibility reasons (e.g. submit_bh).
  */
-struct buffer_head {
+struct buffer_head 
+{
+	//缓冲区状态标志
 	unsigned long b_state;		/* buffer state bitmap (see above) */
+	//指向缓冲区页的链表中的下一个元素的指针
 	struct buffer_head *b_this_page;/* circular list of page's buffers */
+	//指向拥有该块的缓冲区页的描述符的指针
 	struct page *b_page;		/* the page this bh is mapped to */
 
+	//与块设备相关的块号（逻辑块号）
 	sector_t b_blocknr;		/* start block number */
+	//块大小
 	size_t b_size;			/* size of mapping */
+	//块在缓冲区页内的位置
 	char *b_data;			/* pointer to data within the page */
 
+	//指向块设备描述符的指针
 	struct block_device *b_bdev;
+	//IO完成方法
 	bh_end_io_t *b_end_io;		/* I/O completion */
+	//指向IO完成方法数据的指针
  	void *b_private;		/* reserved for b_end_io */
+	//为某个索引节点相关的间接块的链表提供的指针
 	struct list_head b_assoc_buffers; /* associated with another mapping */
 	struct address_space *b_assoc_map;	/* mapping this buffer is
 						   associated with */

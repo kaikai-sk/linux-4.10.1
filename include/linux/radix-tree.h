@@ -107,7 +107,11 @@ struct radix_tree_node {
 	};
 	/*结点的slot指针*/
 	void __rcu	*slots[RADIX_TREE_MAP_SIZE];
-	 /*结点标签数组=每个slot需要的最大标签位数*slot数所需的long类型变量数*/
+	 /*结点标签数组=每个slot需要的最大标签位数*slot数所需的long类型变量数
+	   每个节点的tags字段中有两个64位的数组来存放PG_dirty和PG_writeback这两个页描述符的标志
+       tags[0]:(PAGECACHE_TAG_DIRTY)数组是脏标记
+       tags[1]:PAGECACHE_TAG_WRITEBACK数组是写回标记
+	*/
 	unsigned long	tags[RADIX_TREE_MAX_TAGS][RADIX_TREE_TAG_LONGS];
 };
 
@@ -586,6 +590,7 @@ radix_tree_next_slot(void **slot, struct radix_tree_iter *iter, unsigned flags)
 
 /**
  * radix_tree_for_each_tagged - iterate over tagged slots
+ * 迭代标记的插槽
  *
  * @slot:	the void** variable for pointer to slot
  * @root:	the struct radix_tree_root pointer

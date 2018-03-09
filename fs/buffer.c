@@ -209,7 +209,10 @@ __find_get_block_slow(struct block_device *bdev, sector_t block)
 	struct page *page;
 	int all_mapped = 1;
 
+	//如果缓冲区的首部不在LRU块高速缓存中，根据块号和块大小得到与块设备相关的页的索引
 	index = block >> (PAGE_SHIFT - bd_inode->i_blkbits);
+
+	//调用find_get_page()确定存有所请求的块缓冲区的缓冲区页的描述符在page cache中的位置
 	page = find_get_page_flags(bd_mapping, index, FGP_ACCESSED);
 	if (!page)
 		goto out;
@@ -1003,13 +1006,18 @@ grow_dev_page(struct block_device *bdev, sector_t block,
 	 */
 	gfp_mask |= __GFP_NOFAIL;
 
+	/*
+		find_or_create_page()在页高速缓存中搜索需要的页，如果需要，就把新页插入page cache
+	*/
 	page = find_or_create_page(inode->i_mapping, index, gfp_mask);
 	if (!page)
 		return ret;
 
 	BUG_ON(!PageLocked(page));
-
-	if (page_has_buffers(page)) {
+	//检查page的PG_private标志，如果为空，说明该页还不是一个缓冲区页
+	//（没有相关的缓冲区首部）
+	if (page_has_buffers(page)) 
+	{
 		bh = page_buffers(page);
 		if (bh->b_size == size) {
 			end_block = init_page_buffers(page, bdev,
@@ -1049,6 +1057,10 @@ failed:
 /*
  * Create buffers for the specified block device block's page.  If
  * that page was dirty, the buffers are set dirty also.
+
+ * bdev:块设备描述符的地址
+ * block:逻辑块号（块在块设备中的位置）
+ * size:块大小
  */
 static int
 grow_buffers(struct block_device *bdev, sector_t block, int size, gfp_t gfp)
@@ -1056,6 +1068,9 @@ grow_buffers(struct block_device *bdev, sector_t block, int size, gfp_t gfp)
 	pgoff_t index;
 	int sizebits;
 
+	/*
+		计算数据页在所请求块的块设备中的偏移量index
+	*/
 	sizebits = -1;
 	do {
 		sizebits++;
@@ -1075,7 +1090,9 @@ grow_buffers(struct block_device *bdev, sector_t block, int size, gfp_t gfp)
 		return -EIO;
 	}
 
-	/* Create a page with the proper size buffers.. */
+	/* Create a page with the proper size buffers.. 
+		如果需要，就调用grow_dev_page（）创建新的块设备缓冲区页
+	*/
 	return grow_dev_page(bdev, block, index, size, sizebits, gfp);
 }
 
@@ -1350,22 +1367,36 @@ lookup_bh_lru(struct block_device *bdev, sector_t block, unsigned size)
  * Perform a pagecache lookup for the matching buffer.  If it's there, refresh
  * it in the LRU and mark it as accessed.  If it is not present then return
  * NULL
+ *
+ * @return 返回page cache中的块缓冲区对应的缓冲区首部的地址，如果不存在指定的块，就返回NULL
  */
 struct buffer_head *
 __find_get_block(struct block_device *bdev, sector_t block, unsigned size)
 {
+	//检查执行CPU的LRU块高速缓存数组中是否有一个缓冲区首部
+	//其b_bdev、b_blocknr和b_size字段分别等于bdev、block和size
 	struct buffer_head *bh = lookup_bh_lru(bdev, block, size);
 
-	if (bh == NULL) {
+	if (bh == NULL) 
+	{
 		/* __find_get_block_slow will mark the page accessed */
 		bh = __find_get_block_slow(bdev, block);
 		if (bh)
 			bh_lru_install(bh);
-	} else
+	}
+	/*
+		如果缓冲区首部在LRU块高速缓存中，就刷新数组中的元素，
+		以便让指针指在第一个位置（所因为0）刚找到的缓冲区首部，
+		递增它的b_count字段
+
+		如果需要，就调用mark_page_accessed()把缓冲区页移至适当得到LRU链表中
+	*/
+	else
 		touch_buffer(bh);
 
 	return bh;
 }
+
 EXPORT_SYMBOL(__find_get_block);
 
 /*
@@ -3317,7 +3348,13 @@ int try_to_free_buffers(struct page *page)
 	struct buffer_head *buffers_to_free = NULL;
 	int ret = 0;
 
+	/*
+		检查页中所有缓冲区的缓冲区首部的标志。
+		如果有些缓冲区首部的BH_locked被置位，说明函数不可能释放这些缓冲区，
+		所以函数终止并返回0
+	*/
 	BUG_ON(!PageLocked(page));
+	
 	if (PageWriteback(page))
 		return 0;
 
@@ -3352,6 +3389,9 @@ out:
 
 		do {
 			struct buffer_head *next = bh->b_this_page;
+			/*
+				释放页的所有缓冲区首部
+			*/
 			free_buffer_head(bh);
 			bh = next;
 		} while (bh != buffers_to_free);
