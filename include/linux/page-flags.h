@@ -71,24 +71,39 @@
  * SPARSEMEM section (for variants of SPARSEMEM that require section ids like
  * SPARSEMEM_EXTREME with !SPARSEMEM_VMEMMAP).
  */
-enum pageflags {
+enum pageflags 
+{
+	//页被锁定。例如磁盘IO操作中涉及的页
 	PG_locked,		/* Page is locked. Don't touch. */
+	//在传输页时发生IO错误
 	PG_error,
+	//刚刚访问过的页
 	PG_referenced,
+	//在完成读操作后置位，除非发生磁盘I/O错误
 	PG_uptodate,
+	//页已经被修改
 	PG_dirty,
+	//页在活动或者非活动页链表中
 	PG_lru,
+	//页在活动页链表中
 	PG_active,
 	PG_waiters,		/* Page has waiters, check its waitqueue. Must be bit #7 and in the same byte as "PG_locked" */
+	//包含在slab中的页框
 	PG_slab,
 	PG_owner_priv_1,	/* Owner use. If pagecache, fs may use*/
+	//在80x86体系上没有使用
 	PG_arch_1,
+	//页框留给内核代码或者没有使用
 	PG_reserved,
+	//页描述符的private字段中存放了有意义的数据
 	PG_private,		/* If pagecache, has fs-private data */
 	PG_private_2,		/* If pagecache, has fs aux data */
+	//正在使用writepage方法将页写到磁盘上
 	PG_writeback,		/* Page is under writeback */
 	PG_head,		/* A head page */
+	//页框中所有数据对应于磁盘上分配的块
 	PG_mappedtodisk,	/* Has blocks allocated on-disk */
+	//为回收内存对页已经做了写入磁盘的标记
 	PG_reclaim,		/* To be reclaimed asap */
 	PG_swapbacked,		/* Page is backed by RAM/swap */
 	PG_unevictable,		/* Page is "unevictable"  */

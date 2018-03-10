@@ -53,6 +53,7 @@ static inline struct page *kmap_to_page(void *addr)
 #define totalhigh_pages 0UL
 
 #ifndef ARCH_HAS_KMAP
+
 static inline void *kmap(struct page *page)
 {
 	might_sleep();

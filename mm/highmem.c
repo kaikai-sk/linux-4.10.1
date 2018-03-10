@@ -160,6 +160,7 @@ struct page *kmap_to_page(void *vaddr)
 }
 EXPORT_SYMBOL(kmap_to_page);
 
+
 static void flush_all_zero_pkmaps(void)
 {
 	int i;
@@ -210,6 +211,9 @@ void kmap_flush_unused(void)
 	unlock_kmap();
 }
 
+/*
+
+*/
 static inline unsigned long map_new_virtual(struct page *page)
 {
 	unsigned long vaddr;
@@ -219,10 +223,15 @@ static inline unsigned long map_new_virtual(struct page *page)
 
 start:
 	count = get_pkmap_entries_count(color);
-	/* Find an empty entry */
-	for (;;) {
+
+	/* Find an empty entry 
+		扫描pkmap_count中所有计数器知道找到一个空值
+	*/
+	for (;;)
+	{
 		last_pkmap_nr = get_next_pkmap_nr(color);
-		if (no_more_pkmaps(last_pkmap_nr, color)) {
+		if (no_more_pkmaps(last_pkmap_nr, color)) 
+		{
 			flush_all_zero_pkmaps();
 			count = get_pkmap_entries_count(color);
 		}
@@ -270,7 +279,9 @@ start:
  *
  * Returns the page's virtual memory address.
  *
- * We cannot call this from interrupts, as it may block.
+ * 注意：
+ *     We cannot call this from interrupts, as it may block.
+ *     没有必要禁止中断，因为中断处理程序和可延迟函数不能调用kmap()
  */
 void *kmap_high(struct page *page)
 {
@@ -279,14 +290,35 @@ void *kmap_high(struct page *page)
 	/*
 	 * For highmem pages, we can't trust "virtual" until
 	 * after we have the lock.
+	 * 获取kmap_lock自旋锁。以保护页表免受多处理系统上的并发访问
 	 */
 	lock_kmap();
+
+	//通过page_address函数来检查页框是否已经被映射
 	vaddr = (unsigned long)page_address(page);
+
+	//如果没有被映射过
 	if (!vaddr)
+	{
+		/*
+			永久内核映射允许内核建立高端页框到内核地址空间的长期映射。
+			他们使用主内核页表中一个专门的页表，其地址存放在pkmap_page_table变量中。
+			页表照样包含512或1024项
+
+		
+			调用map_new_virtual（）把页框的物理地址插入到pkmap_page_table的一个项中，
+			并在page_address_htable散列表中加入一个元素
+		*/
 		vaddr = map_new_virtual(page);
+	}
+
+	//使页框的线性地址所对应的计数器加1，将调用该函数的新内核成分考虑在内
 	pkmap_count[PKMAP_NR(vaddr)]++;
 	BUG_ON(pkmap_count[PKMAP_NR(vaddr)] < 2);
+
+	//释放kmap_lock自旋锁
 	unlock_kmap();
+	//返回对该页框进行映射的线性地址
 	return (void*) vaddr;
 }
 
@@ -401,9 +433,12 @@ static struct page_address_slot *page_slot(const struct page *page)
 
 /**
  * page_address - get the mapped virtual address of a page
+ * 
  * @page: &struct page to get the virtual address of
+ *        页描述符指针page
  *
- * Returns the page's virtual address.
+ * Returns the page's virtual address. 返回页框对应的线性地址。
+ * 如果页框在高端内存中并且没有被映射，则返回NULL
  */
 void *page_address(const struct page *page)
 {
@@ -411,17 +446,34 @@ void *page_address(const struct page *page)
 	void *ret;
 	struct page_address_slot *pas;
 
+	/*
+		如果页框不在高端内存中（PG-highmem为0），则线性地址总是存在
+		并且通过计算页框下标，然后将其转换为物理地址，最后根据相应的物理地址
+		得到线性地址
+	*/
 	if (!PageHighMem(page))
 		return lowmem_page_address(page);
 
 	pas = page_slot(page);
 	ret = NULL;
 	spin_lock_irqsave(&pas->lock, flags);
-	if (!list_empty(&pas->lh)) {
+
+	/*
+		到page_address_htable散列表中查找。
+		如果在散列表中找到页框，就返回它的线性地址。
+		否则就返回NULL
+	*/
+	if (!list_empty(&pas->lh)) 
+	{
 		struct page_address_map *pam;
 
-		list_for_each_entry(pam, &pas->lh, list) {
-			if (pam->page == page) {
+		list_for_each_entry(pam, &pas->lh, list) 
+		{
+			/*
+			如果在散列表中找到页框，就返回它的线性地址。
+			*/
+			if (pam->page == page) 
+			{
 				ret = pam->virtual;
 				goto done;
 			}

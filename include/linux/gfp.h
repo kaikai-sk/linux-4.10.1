@@ -20,16 +20,26 @@ struct vm_area_struct;
 #define ___GFP_DMA32		0x04u
 #define ___GFP_MOVABLE		0x08u
 #define ___GFP_RECLAIMABLE	0x10u
+//允许内核访问保留的页框池
 #define ___GFP_HIGH		0x20u
+//允许内核在低端内存页上执行I/O传输以释放页框
 #define ___GFP_IO		0x40u
+//如果清0，则不允许内核执行依赖于文件系统的操作
 #define ___GFP_FS		0x80u
+//所请求的页框可能是“冷”的
 #define ___GFP_COLD		0x100u
+//一次内存分配失败则不会产生警告信息
 #define ___GFP_NOWARN		0x200u
+//内核重试内存分配直到成功
 #define ___GFP_REPEAT		0x400u
+//与___GFP_REPEAT相同
 #define ___GFP_NOFAIL		0x800u
+//一次内存分配失败后不再重试
 #define ___GFP_NORETRY		0x1000u
 #define ___GFP_MEMALLOC		0x2000u
+//属于扩展页的页框
 #define ___GFP_COMP		0x4000u
+//任何返回的页框必须被填满0
 #define ___GFP_ZERO		0x8000u
 #define ___GFP_NOMEMALLOC	0x10000u
 #define ___GFP_HARDWALL		0x20000u
@@ -49,7 +59,13 @@ struct vm_area_struct;
  * without the underscores and use them consistently. The definitions here may
  * be used in bit comparisons.
  */
+/*
+	所请求的页框必须处于ZONE_DMA管理区。等价于GFP_DMA
+*/
 #define __GFP_DMA	((__force gfp_t)___GFP_DMA)
+/*
+	所请求的页框处于ZONE_HIGHMEM管理区
+*/
 #define __GFP_HIGHMEM	((__force gfp_t)___GFP_HIGHMEM)
 #define __GFP_DMA32	((__force gfp_t)___GFP_DMA32)
 #define __GFP_MOVABLE	((__force gfp_t)___GFP_MOVABLE)  /* ZONE_MOVABLE allowed */
@@ -456,11 +472,18 @@ static inline struct page *alloc_pages_node(int nid, gfp_t gfp_mask,
 #ifdef CONFIG_NUMA
 extern struct page *alloc_pages_current(gfp_t gfp_mask, unsigned order);
 
+
+/*
+	用这个函数请求2^order个连续的页框。
+	他返回第一个所分配叶框描述符的地址。如果分配失败则返回NULL
+*/
 static inline struct page *
 alloc_pages(gfp_t gfp_mask, unsigned int order)
 {
 	return alloc_pages_current(gfp_mask, order);
 }
+
+
 extern struct page *alloc_pages_vma(gfp_t gfp_mask, int order,
 			struct vm_area_struct *vma, unsigned long addr,
 			int node, bool hugepage);
@@ -474,27 +497,53 @@ extern struct page *alloc_pages_vma(gfp_t gfp_mask, int order,
 #define alloc_hugepage_vma(gfp_mask, vma, addr, order)	\
 	alloc_pages(gfp_mask, order)
 #endif
+
+/*
+	用于获得一个单独页框的宏
+	返回所分配的页框描述符的地址。如果分配失败，则返回NULL
+*/
 #define alloc_page(gfp_mask) alloc_pages(gfp_mask, 0)
+
 #define alloc_page_vma(gfp_mask, vma, addr)			\
 	alloc_pages_vma(gfp_mask, 0, vma, addr, numa_node_id(), false)
 #define alloc_page_vma_node(gfp_mask, vma, addr, node)		\
 	alloc_pages_vma(gfp_mask, 0, vma, addr, node, false)
 
+/*
+	该函数类似于alloc_pages(),但它返回第一个所分配页的线性地址
+*/
 extern unsigned long __get_free_pages(gfp_t gfp_mask, unsigned int order);
+/*
+	用来获取填满0的页框
+*/
 extern unsigned long get_zeroed_page(gfp_t gfp_mask);
 
 void *alloc_pages_exact(size_t size, gfp_t gfp_mask);
 void free_pages_exact(void *virt, size_t size);
 void * __meminit alloc_pages_exact_nid(int nid, size_t size, gfp_t gfp_mask);
 
+/*
+	用于一个获得单读页框的宏
+*/
 #define __get_free_page(gfp_mask) \
 		__get_free_pages((gfp_mask), 0)
 
+/*
+	获得适用于DMA的页框
+*/
 #define __get_dma_pages(gfp_mask, order) \
 		__get_free_pages((gfp_mask) | GFP_DMA, (order))
 
+/*
+	释放页框
+*/
 extern void __free_pages(struct page *page, unsigned int order);
+/*
+	类似于__free_pages，但是参数不同
+	addr：要释放的第一个页框的线性地址addr
+*/
 extern void free_pages(unsigned long addr, unsigned int order);
+
 extern void free_hot_cold_page(struct page *page, bool cold);
 extern void free_hot_cold_page_list(struct list_head *list, bool cold);
 
@@ -504,7 +553,9 @@ extern void *page_frag_alloc(struct page_frag_cache *nc,
 			     unsigned int fragsz, gfp_t gfp_mask);
 extern void page_frag_free(void *addr);
 
+//释放page所指的描述符所对应的页框
 #define __free_page(page) __free_pages((page), 0)
+//释放线性地址addr的页框
 #define free_page(addr) free_pages((addr), 0)
 
 void page_alloc_init(void);

@@ -43,10 +43,16 @@ struct mem_cgroup;
  * and lru list pointers also.
  */
 struct page {
-	/* First double word block */
+	/* First double word block 
+		一组标识。也对页框所在的管理区进行编号
+	*/
 	unsigned long flags;		/* Atomic flags, some possibly
 					 * updated asynchronously */
-	union {
+	union 
+	{
+		/*
+			当页被插入page cache时使用。或者当页属于匿名区时使用
+		*/
 		struct address_space *mapping;	/* If low bit clear, points to
 						 * inode address_space, or NULL.
 						 * If page mapped as anonymous
@@ -60,7 +66,13 @@ struct page {
 	};
 
 	/* Second double word */
-	union {
+	union 
+	{
+		/*
+			作为不同含义的几种内核成分使用
+			例如，在页磁盘映像或者匿名区中标识存放在页框中的数据的位置
+			      存放一个换出页标识符
+		*/
 		pgoff_t index;		/* Our offset within mapping. */
 		void *freelist;		/* sl[aou]b first free object */
 		/* page_deferred_list().prev	-- second tail page */
@@ -91,6 +103,7 @@ struct page {
 				 * in which case the value MUST BE <= -2.
 				 * See page-flags.h for more details.
 				 */
+				/*页框中页表项数目（如果没有则为-1）*/
 				atomic_t _mapcount;
 
 				unsigned int active;		/* SLAB */
@@ -116,7 +129,11 @@ struct page {
 	 * the rest users of the storage space MUST NOT use the bit to
 	 * avoid collision and false-positive PageTail().
 	 */
-	union {
+	union 
+	{
+		/*
+			包含页的最近最少使用（LRU）双向链表的指针
+		*/
 		struct list_head lru;	/* Pageout list, eg. active_list
 					 * protected by zone_lru_lock !
 					 * Can be used as a generic list
@@ -173,7 +190,12 @@ struct page {
 	};
 
 	/* Remainder is not double word aligned */
-	union {
+	union 
+	{
+		/*
+			可用于正在使用页的内核成分（例如，在缓冲页的情况下，它是一个缓冲器头指针）
+			如果页是空闲的，则该字段由伙伴系统使用
+		*/
 		unsigned long private;		/* Mapping-private opaque data:
 					 	 * usually used for buffer_heads
 						 * if PagePrivate set; used for

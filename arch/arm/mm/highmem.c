@@ -34,13 +34,21 @@ static inline pte_t get_fixmap_pte(unsigned long vaddr)
 	return *ptep;
 }
 
+/*
+	建立永久内核映射。
+	高端内存映射，运用数组进行操作分配情况
+	分配好后需要加入到hash表中
+*/
 void *kmap(struct page *page)
 {
 	might_sleep();
+	//如果页框不属于高端内存
 	if (!PageHighMem(page))
 		return page_address(page);
+	//页框确实属于高端内存
 	return kmap_high(page);
 }
+
 EXPORT_SYMBOL(kmap);
 
 void kunmap(struct page *page)
@@ -52,6 +60,7 @@ void kunmap(struct page *page)
 }
 EXPORT_SYMBOL(kunmap);
 
+//为建立起临时内核映射
 void *kmap_atomic(struct page *page)
 {
 	unsigned int idx;
@@ -59,8 +68,14 @@ void *kmap_atomic(struct page *page)
 	void *kmap;
 	int type;
 
+	/*
+		current_thread_info()->preempt_count++;抢占数++
+	*/
 	preempt_disable();
+
 	pagefault_disable();
+
+	//如果不属于高端内存，直接返回页框的线性地址
 	if (!PageHighMem(page))
 		return page_address(page);
 
@@ -77,10 +92,18 @@ void *kmap_atomic(struct page *page)
 	if (kmap)
 		return kmap;
 
+	/*
+		type参数和CPU标识符（smp_processor_id（）函数获得）指定必须用哪个固定映射的线性地址映射请求页
+	*/
 	type = kmap_atomic_idx_push();
-
 	idx = FIX_KMAP_BEGIN + type + KM_TYPE_NR * smp_processor_id();
+
+	/*
+		用页的物理地址及Present、Accessed、Read/Write和Dirty位建立该固定映射的线性地址对应的页表项
+	*/
 	vaddr = __fix_to_virt(idx);
+
+	
 #ifdef CONFIG_DEBUG_HIGHMEM
 	/*
 	 * With debugging enabled, kunmap_atomic forces that entry to 0.
@@ -92,6 +115,8 @@ void *kmap_atomic(struct page *page)
 	 * When debugging is off, kunmap_atomic leaves the previous mapping
 	 * in place, so the contained TLB flush ensures the TLB is updated
 	 * with the new mapping.
+
+	 * 刷新适当的TLB项并返回线性地址
 	 */
 	set_fixmap_pte(idx, mk_pte(page, kmap_prot));
 

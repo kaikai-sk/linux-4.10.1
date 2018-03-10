@@ -343,7 +343,8 @@ enum zone_type {
 
 #ifndef __GENERATING_BOUNDS_H
 
-struct zone {
+struct zone 
+{
 	/* Read-mostly fields */
 
 	/* zone watermarks, access with *_wmark_pages(zone) macros */
@@ -359,6 +360,8 @@ struct zone {
 	 * there being tons of freeable ram on the higher zones).  This array is
 	 * recalculated at runtime if the sysctl_lowmem_reserve_ratio sysctl
 	 * changes.
+
+	   指明在处理内存不足的临界情况下每个管理区必须保留的页框的数目
 	 */
 	long lowmem_reserve[MAX_NR_ZONES];
 
@@ -366,6 +369,9 @@ struct zone {
 	int node;
 #endif
 	struct pglist_data	*zone_pgdat;
+	/*
+		数据结构用于实现单一页框的特殊高速缓存
+	*/
 	struct per_cpu_pageset __percpu *pageset;
 
 #ifndef CONFIG_SPARSEMEM
@@ -421,9 +427,16 @@ struct zone {
 	 * touching zone->managed_pages and totalram_pages.
 	 */
 	unsigned long		managed_pages;
+	/*以页为单位的管理区的总大小，包括洞*/
 	unsigned long		spanned_pages;
+	/*
+		以页为单位的管理区的总大小，不包括洞
+	*/
 	unsigned long		present_pages;
-
+	/*
+		指针指向管理区的传统名称：
+		“DMA”“NORMAL”和“HightMem”
+	*/
 	const char		*name;
 
 #ifdef CONFIG_MEMORY_ISOLATION
@@ -445,13 +458,17 @@ struct zone {
 	/* Write-intensive fields used from the page allocator */
 	ZONE_PADDING(_pad1_)
 
-	/* free areas of different sizes */
+	/* free areas of different sizes 
+		标识出管理区中空闲页框块
+	*/
 	struct free_area	free_area[MAX_ORDER];
 
 	/* zone flags, see below */
 	unsigned long		flags;
 
-	/* Primarily protects free_area */
+	/* Primarily protects free_area 
+		保护该描述符的自旋锁
+	*/
 	spinlock_t		lock;
 
 	/* Write-intensive fields used by compaction and vmstats. */
@@ -594,17 +611,41 @@ extern struct page *mem_map;
  * per-zone basis.
  */
 struct bootmem_data;
-typedef struct pglist_data {
+
+/*
+	系统的物理内存被划分为几个节点。
+	每个节点中的物理内存又可以分为几个管理区（Zone）。
+	每个节点都有一个类行为pg_data_t的描述符。
+	所有节点的描述符存放在一个单向链表中，它的第一个元素有pgdat_list变量指向
+*/
+typedef struct pglist_data 
+{
+	//节点中管理区描述符的数组
 	struct zone node_zones[MAX_NR_ZONES];
+	/*
+		页分配器使用的zonelist数据结构的数组
+
+		指点了备用结点及其内存域的列表，以便在当前结点没有可用空间时，
+		在备用结点分配内存
+	*/
 	struct zonelist node_zonelists[MAX_ZONELISTS];
+	/*
+		节点中管理区的个数
+	*/
 	int nr_zones;
 #ifdef CONFIG_FLAT_NODE_MEM_MAP	/* means !SPARSEMEM */
+	/*
+		节点中页描述符的数组
+	*/
 	struct page *node_mem_map;
 #ifdef CONFIG_PAGE_EXTENSION
 	struct page_ext *node_page_ext;
 #endif
 #endif
 #ifndef CONFIG_NO_BOOTMEM
+	/*
+		用在内核初始化阶段
+	*/
 	struct bootmem_data *bdata;
 #endif
 #ifdef CONFIG_MEMORY_HOTPLUG
@@ -620,13 +661,31 @@ typedef struct pglist_data {
 	 */
 	spinlock_t node_size_lock;
 #endif
+	/*
+		节点中第一个页框的下标
+	*/
 	unsigned long node_start_pfn;
+	/*
+		内存节点的大小，不包括洞（以页框为单位）
+	*/
 	unsigned long node_present_pages; /* total number of physical pages */
+	/*
+		节点的大小，包括洞（以页框为单位）
+	*/
 	unsigned long node_spanned_pages; /* total size of physical page
 					     range, including holes */
+	/*
+		节点标识符
+	*/
 	int node_id;
+	/*
+		kswapd页换出守护进程使用的等待队列
+	*/
 	wait_queue_head_t kswapd_wait;
 	wait_queue_head_t pfmemalloc_wait;
+	/*
+		指针指向kswapd内核线程的进程描述符
+	*/
 	struct task_struct *kswapd;	/* Protected by
 					   mem_hotplug_begin/end() */
 	int kswapd_order;

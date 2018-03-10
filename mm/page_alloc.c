@@ -3883,15 +3883,31 @@ unsigned long __get_free_pages(gfp_t gfp_mask, unsigned int order)
 }
 EXPORT_SYMBOL(__get_free_pages);
 
+/*
+	获取填满0的页框
+	返回获取到的页框的线性地址
+*/
 unsigned long get_zeroed_page(gfp_t gfp_mask)
 {
 	return __get_free_pages(gfp_mask | __GFP_ZERO, 0);
 }
+
+
 EXPORT_SYMBOL(get_zeroed_page);
 
+/*
+	释放页框
+
+	1. 检查page指向的页描述符
+	2. 如果该页框未被保留（PG_reserved标志为0） 就把描述符的count字段减1
+	3. 如果count值变为0，就假定从page对应的页框开始的2^order个连续页框不再被使用
+	4. 在这种情况下，该函数释放页框。
+	
+*/
 void __free_pages(struct page *page, unsigned int order)
 {
-	if (put_page_testzero(page)) {
+	if (put_page_testzero(page))
+	{
 		if (order == 0)
 			free_hot_cold_page(page, false);
 		else
