@@ -259,16 +259,26 @@ enum zone_watermarks {
 #define low_wmark_pages(z) (z->watermark[WMARK_LOW])
 #define high_wmark_pages(z) (z->watermark[WMARK_HIGH])
 
-struct per_cpu_pages {
+struct per_cpu_pages
+{
+	//高速缓存中页框的个数
 	int count;		/* number of pages in the list */
+	//上界，表示高速缓存用尽
 	int high;		/* high watermark, emptying needed */
+	//高速缓存中将要添加或者被删去的页框的个数
 	int batch;		/* chunk size for buddy add/remove */
 
-	/* Lists of pages, one per migrate type stored on the pcp-lists */
+	/*  Lists of pages, one per migrate type stored on the pcp-lists 
+		高速缓存中包含的页框描述符链表
+	*/
 	struct list_head lists[MIGRATE_PCPTYPES];
 };
 
-struct per_cpu_pageset {
+/*
+	每CPU页框高速缓存的主要数据结构
+*/
+struct per_cpu_pageset 
+{
 	struct per_cpu_pages pcp;
 #ifdef CONFIG_NUMA
 	s8 expire;

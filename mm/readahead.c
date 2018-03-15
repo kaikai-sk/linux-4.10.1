@@ -184,7 +184,8 @@ int __do_page_cache_readahead(struct address_space *mapping, struct file *filp,
 	 * 这个for循环的功能：在从磁盘上读取数据之前，首先预分配一些内存页面，
 	 * 用来存放读取的文件数据
 	 */
-	for (page_idx = 0; page_idx < nr_to_read; page_idx++) {
+	for (page_idx = 0; page_idx < nr_to_read; page_idx++)
+	{
 		pgoff_t page_offset = offset + page_idx;
 
 		if (page_offset > end_index)

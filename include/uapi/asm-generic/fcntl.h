@@ -16,46 +16,62 @@
  */
 
 #define O_ACCMODE	00000003
+//只读
 #define O_RDONLY	00000000
+//只写
 #define O_WRONLY	00000001
+//读写
 #define O_RDWR		00000002
 #ifndef O_CREAT
+//如果文件不存在，就创建它
 #define O_CREAT		00000100	/* not fcntl */
 #endif
 #ifndef O_EXCL
+//对于O_CREATE标志，如果文件已经存在，则失败
 #define O_EXCL		00000200	/* not fcntl */
 #endif
 #ifndef O_NOCTTY
+//从不把文件看作控制终端
 #define O_NOCTTY	00000400	/* not fcntl */
 #endif
 #ifndef O_TRUNC
+//截断文件
 #define O_TRUNC		00001000	/* not fcntl */
 #endif
 #ifndef O_APPEND
+//总是在文件末尾写
 #define O_APPEND	00002000
 #endif
 #ifndef O_NONBLOCK
+//没有系统调用在文件上阻塞
 #define O_NONBLOCK	00004000
 #endif
 #ifndef O_DSYNC
+//同步写（阻塞，直到物理写终止）
 #define O_DSYNC		00010000	/* used to be O_SYNC, see below */
 #endif
 #ifndef FASYNC
+//通过信号发出I/O事件通告
 #define FASYNC		00020000	/* fcntl, for BSD compatibility */
 #endif
 #ifndef O_DIRECT
+//直接IO传送（无内核缓冲）
 #define O_DIRECT	00040000	/* direct disk access hint */
 #endif
 #ifndef O_LARGEFILE
+//大型文件（长度大于2GB）
 #define O_LARGEFILE	00100000
 #endif
 #ifndef O_DIRECTORY
+//如果文件不是一个目录，则失败
 #define O_DIRECTORY	00200000	/* must be a directory */
 #endif
 #ifndef O_NOFOLLOW
+//不解释路径名中尾部的符号链接
 #define O_NOFOLLOW	00400000	/* don't follow links */
 #endif
 #ifndef O_NOATIME
+//不更新索引节点的上次访问时间
 #define O_NOATIME	01000000
 #endif
 #ifndef O_CLOEXEC

@@ -13,7 +13,14 @@ enum { MAX_NESTED_LINKS = 8 };
 /*
  * Type of the last component on LOOKUP_PARENT
  */
-enum {LAST_NORM, LAST_ROOT, LAST_DOT, LAST_DOTDOT, LAST_BIND};
+enum 
+{
+	LAST_NORM,//普通的路径名
+	LAST_ROOT, // "/"
+	LAST_DOT,//.
+	LAST_DOTDOT,//.. 
+	LAST_BIND//符号连接
+};
 
 /*
  * The bitmask for a lookup event:

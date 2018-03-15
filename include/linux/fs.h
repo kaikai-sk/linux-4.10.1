@@ -844,7 +844,8 @@ struct fown_struct {
  * 追踪一个文件的readahead状态
  * Track a single file's readahead state
  */
-struct file_ra_state {
+struct file_ra_state
+{
 	//当前窗口的第一个页面索引
 	pgoff_t start;			/* where readahead started */
 	// 当前窗口的页面数量。

@@ -133,7 +133,7 @@ getname_flags(const char __user *filename, int flags, int *empty)
 	result = audit_reusename(filename);
 	if (result)
 		return result;
-
+	//在内核缓冲区专用队列中申请一块内存来用来放置路径名
 	result = __getname();
 	if (unlikely(!result))
 		return ERR_PTR(-ENOMEM);
@@ -503,17 +503,29 @@ void path_put(const struct path *path)
 EXPORT_SYMBOL(path_put);
 
 #define EMBEDDED_LEVELS 2
-struct nameidata {
+
+struct nameidata 
+{
+	//保存当前搜索到的路径
 	struct path	path;
+	//保存当前子路径名及其散列值
 	struct qstr	last;
+	//用来保存根目录的信息
 	struct path	root;
+	//当前找到目录项的inode结构
 	struct inode	*inode; /* path.dentry.d_inode */
+	//flags是和一些和查找（lookup）相关的标志位
 	unsigned int	flags;
+	//seq是相关目录项的顺序锁序号
+	//m_seq是相关文件系统（其实是mount）的顺序锁序号
 	unsigned	seq, m_seq;
+	//表示当前节点类型
 	int		last_type;
+	//用来记录在解析符号连接过程中的递归深度
 	unsigned	depth;
 	int		total_link_count;
-	struct saved {
+	struct saved 
+	{
 		struct path link;
 		struct delayed_call done;
 		const char *name;
@@ -1317,10 +1329,24 @@ static int follow_dotdot_rcu(struct nameidata *nd)
 {
 	struct inode *inode = nd->inode;
 
-	while (1) {
+	/*
+		 通过观察这个循环体我们发现只有 follow_up_rcu 返回非 0 的时候才会进入循环，
+		 其余几种情况都会通过 break 直接跳出循环。
+	*/
+	while (1) 
+	{
+		/*
+			首先，如果当前路径就是预设根目录的话就什么也不做直接跳出循环
+			（都已经到根目录了不退出还等啥呢，大家可以在根目录试试这个命令“cd ../../”，看看有什么效果）；
+		*/
 		if (path_equal(&nd->path, &nd->root))
 			break;
-		if (nd->path.dentry != nd->path.mnt->mnt_root) {
+		/*
+			其次，当前路径不是预设根目录，但也不是当前文件系统的根目录（1145），
+			那么向上走一层也是很简单的事，直接将父目录项拿过来就是了（			nd->path.dentry = parent;）；
+		*/
+		if (nd->path.dentry != nd->path.mnt->mnt_root) 
+		{
 			struct dentry *old = nd->path.dentry;
 			struct dentry *parent = old->d_parent;
 			unsigned seq;
@@ -1334,7 +1360,12 @@ static int follow_dotdot_rcu(struct nameidata *nd)
 			if (unlikely(!path_connected(&nd->path)))
 				return -ENOENT;
 			break;
-		} else {
+		}
+		/*
+			最后，当前路径一定是某个文件系统的根目录，往上走有可能就会走到另一个文件系统里去了。
+		*/
+		else
+		{
 			struct mount *mnt = real_mount(nd->path.mnt);
 			struct mount *mparent = mnt->mnt_parent;
 			struct dentry *mountpoint = mnt->mnt_mountpoint;
@@ -1351,7 +1382,16 @@ static int follow_dotdot_rcu(struct nameidata *nd)
 			nd->seq = seq;
 		}
 	}
-	while (unlikely(d_mountpoint(nd->path.dentry))) {
+	/*
+		d_mountpoint() 就是检查标志位 DCACHE_MOUNTED
+
+		然后在某个散列表中查找属于这个挂载点的 mount 结构，
+		如果找到了（如果某个目录既是挂载点但又没有任何文件系统挂载在上面那就说明这个目录可能拥有自动挂载的属性），
+		就往下走一层，走到挂载文件系统的根目录上（1167），
+		然后再回到 1161 行再判断、查找、向下走，周而复始直到某个非挂载点。
+	*/
+	while (unlikely(d_mountpoint(nd->path.dentry))) 
+	{
 		struct mount *mounted;
 		mounted = __lookup_mnt(nd->path.mnt, nd->path.dentry);
 		if (unlikely(read_seqretry(&mount_lock, nd->m_seq)))
@@ -1544,11 +1584,19 @@ static int lookup_fast(struct nameidata *nd,
 	 * of a false negative due to a concurrent rename, the caller is
 	 * going to fall back to non-racy lookup.
 	 */
-	if (nd->flags & LOOKUP_RCU) {
+	if (nd->flags & LOOKUP_RCU) 
+	{
 		unsigned seq;
 		bool negative;
+		/*
+		    首先调用 __d_lookup_rcu 在内存中的某个散列表里通过字符串比较查找目标 dentry，如果找到了就返回该 dentry；
+		*/
 		dentry = __d_lookup_rcu(parent, &nd->last, &seq);
-		if (unlikely(!dentry)) {
+		/*
+			如果没找到就需要跳转到 unlazy 标号处
+		*/
+		if (unlikely(!dentry)) 
+		{
 			if (unlazy_walk(nd, NULL, 0))
 				return -ECHILD;
 			return 0;
@@ -1679,13 +1727,28 @@ static inline int may_lookup(struct nameidata *nd)
 
 static inline int handle_dots(struct nameidata *nd, int type)
 {
-	if (type == LAST_DOTDOT) {
+	//处理..的情况
+	if (type == LAST_DOTDOT) 
+	{
 		if (!nd->root.mnt)
 			set_root(nd);
-		if (nd->flags & LOOKUP_RCU) {
+		/*
+			前面说过 do_filp_open 会首先使用 RCU 策略进行操作，如果不行再用普通策略。
+			这里就可以看出只有 RCU 失败才会返回 -ECHILD 以启动普通策略。
+		*/
+		if (nd->flags & LOOKUP_RCU) 
+		{
 			return follow_dotdot_rcu(nd);
-		} else
+		}
+		else
+		{
+			/*
+		        这里并没有对 follow_dotdot(_rcu) 的返回值进行检查，为什么？
+		        这是因为“..”出现在路径里就表示要向“上”走一层，也就是要走到父目录里面去，
+		        而父目录一定是存在内存中而且对于当前的进程来说一定也是合法的，否则在读取父目录的时候就已经出错了。
+		    */
 			return follow_dotdot(nd);
+		}
 	}
 	return 0;
 }
@@ -1759,17 +1822,27 @@ static int walk_component(struct nameidata *nd, int flags)
 	struct inode *inode;
 	unsigned seq;
 	int err;
+
 	/*
 	 * "." and ".." are special - ".." especially so because it has
 	 * to be able to know about the current root directory and
 	 * parent relationships.
+	   子路径是.或者..的情况，在handle_dots中单独处理
 	 */
-	if (unlikely(nd->last_type != LAST_NORM)) {
+	if (unlikely(nd->last_type != LAST_NORM)) 
+	{
 		err = handle_dots(nd, nd->last_type);
+		
 		if (!(flags & WALK_MORE) && nd->depth)
 			put_link(nd);
 		return err;
 	}
+
+	/*
+		在 Kernel 中任何一个常用操作都会有两套以上的策略，其中一个是高效率的相对而言另一个就是系统开销比较大的。
+		比如在上面的代码中就能直观的发现 Kernel 会首先尝试 fast（err = lookup_fast(nd, &path, &inode, &seq);） ，
+		如果失败了才会启动 slow（path.dentry = lookup_slow(&nd->last, nd->path.dentry,		  nd->flags);）。
+	*/
 	err = lookup_fast(nd, &path, &inode, &seq);
 	if (unlikely(err <= 0)) {
 		if (err < 0)
@@ -2036,16 +2109,23 @@ static int link_path_walk(const char *name, struct nameidata *nd)
 {
 	int err;
 
+	//首先略过连续的/
 	while (*name=='/')
 		name++;
+	//如果此时路径结束了，那就是相当于整个路径只有一个/
 	if (!*name)
 		return 0;
 
-	/* At this point we know we have a real path component. */
-	for(;;) {
+	/* At this point we know we have a real path component. 
+		如果此时路径还没有结束，那就说明至少拥有了一个真正的子路径
+		就要条到这个大循环中来
+	*/
+	for(;;)
+	{
 		u64 hash_len;
 		int type;
 
+		//例行安全检查
 		err = may_lookup(nd);
 		if (err)
 			return err;
@@ -2053,6 +2133,8 @@ static int link_path_walk(const char *name, struct nameidata *nd)
 		hash_len = hash_name(nd->path.dentry, name);
 
 		type = LAST_NORM;
+
+		//看子路径是不是.或者..并做好标记
 		if (name[0] == '.') switch (hashlen_len(hash_len)) {
 			case 2:
 				if (name[1] == '.') {
@@ -2063,9 +2145,15 @@ static int link_path_walk(const char *name, struct nameidata *nd)
 			case 1:
 				type = LAST_DOT;
 		}
+		/*
+		  普通路径
+		*/
 		if (likely(type == LAST_NORM)) {
 			struct dentry *parent = nd->path.dentry;
 			nd->flags &= ~LOOKUP_JUMPED;
+			/*
+				看是否重新计算散列码
+			*/
 			if (unlikely(parent->d_flags & DCACHE_OP_HASH)) {
 				struct qstr this = { { .hash_len = hash_len }, .name = name };
 				err = parent->d_op->d_hash(parent, &this);
@@ -2076,39 +2164,55 @@ static int link_path_walk(const char *name, struct nameidata *nd)
 			}
 		}
 
+		//先把子路径名先更新一下
 		nd->last.hash_len = hash_len;
 		nd->last.name = name;
 		nd->last_type = type;
 
 		name += hashlen_len(hash_len);
+
+		
 		if (!*name)
 			goto OK;
 		/*
 		 * If it wasn't NUL, we know it was '/'. Skip that
 		 * slash, and continue until no more slashes.
+		 *
+		 * 如果路径还没有到头，那么现在一定是一个/，再次略过连续的/
+		 * 并让name指向下一个子路径，为下一次循环做好了准备
 		 */
-		do {
+		do 
+		{
 			name++;
 		} while (unlikely(*name == '/'));
-		if (unlikely(!*name)) {
+
+		if (unlikely(!*name))
+		{
 OK:
 			/* pathname body, done */
 			if (!nd->depth)
 				return 0;
 			name = nd->stack[nd->depth - 1].name;
-			/* trailing symlink, done */
+				
+			/* trailing symlink, done 
+				如果此时已经达到了最终目标，那么“路径行走”的任务就算完成了
+			*/
 			if (!name)
 				return 0;
+
 			/* last component of nested symlink */
 			err = walk_component(nd, WALK_FOLLOW);
-		} else {
+		} 
+		else
+	    {
 			/* not the last component */
 			err = walk_component(nd, WALK_FOLLOW | WALK_MORE);
 		}
 		if (err < 0)
 			return err;
 
-		if (err) {
+		if (err)
+		{
 			const char *s = get_link(nd);
 
 			if (IS_ERR(s))
@@ -2138,13 +2242,22 @@ static const char *path_init(struct nameidata *nd, unsigned flags)
 	int retval = 0;
 	const char *s = nd->name->name;
 
+	//设置当前节点类型为根节点 也就是说路径名中只有“/”
 	nd->last_type = LAST_ROOT; /* if there are only slashes... */
+	
 	nd->flags = flags | LOOKUP_JUMPED | LOOKUP_PARENT;
 	nd->depth = 0;
-	if (flags & LOOKUP_ROOT) {
+
+	/*
+		
+	*/
+	
+	if (flags & LOOKUP_ROOT)
+	{
 		struct dentry *root = nd->root.dentry;
 		struct inode *inode = root->d_inode;
-		if (*s) {
+		if (*s) 
+		{
 			if (!d_can_lookup(root))
 				return ERR_PTR(-ENOTDIR);
 			retval = inode_permission(inode, MAY_EXEC);
@@ -2153,12 +2266,15 @@ static const char *path_init(struct nameidata *nd, unsigned flags)
 		}
 		nd->path = nd->root;
 		nd->inode = inode;
-		if (flags & LOOKUP_RCU) {
+		if (flags & LOOKUP_RCU) 
+		{
 			rcu_read_lock();
 			nd->seq = __read_seqcount_begin(&nd->path.dentry->d_seq);
 			nd->root_seq = nd->seq;
 			nd->m_seq = read_seqbegin(&mount_lock);
-		} else {
+		}
+		else 
+		{
 			path_get(&nd->path);
 		}
 		return s;
@@ -2169,7 +2285,10 @@ static const char *path_init(struct nameidata *nd, unsigned flags)
 	nd->path.dentry = NULL;
 
 	nd->m_seq = read_seqbegin(&mount_lock);
-	if (*s == '/') {
+	//如果路径是以绝对路径（“/”）开头的话
+	//就把起始路径指向进程的根目录
+	if (*s == '/')
+	{
 		if (flags & LOOKUP_RCU)
 			rcu_read_lock();
 		set_root(nd);
@@ -2178,7 +2297,13 @@ static const char *path_init(struct nameidata *nd, unsigned flags)
 		nd->root.mnt = NULL;
 		rcu_read_unlock();
 		return ERR_PTR(-ECHILD);
-	} else if (nd->dfd == AT_FDCWD) {
+	}
+	/*
+		如果路径是相对路径，并且dfd是一个特殊值（AT_FDCWD）,那就说明
+		起始路径需要指向当前工作目录，也就是pwd
+	*/
+	else if (nd->dfd == AT_FDCWD)
+	{
 		if (flags & LOOKUP_RCU) {
 			struct fs_struct *fs = current->fs;
 			unsigned seq;
@@ -2196,7 +2321,11 @@ static const char *path_init(struct nameidata *nd, unsigned flags)
 			nd->inode = nd->path.dentry->d_inode;
 		}
 		return s;
-	} else {
+	}
+	//如果给了一个有效的dfd
+	//那就需要把起始路径指向这个给定的目录
+	else 
+	{
 		/* Caller must check execute permissions on the starting path component */
 		struct fd f = fdget_raw(nd->dfd);
 		struct dentry *dentry;
@@ -3431,6 +3560,8 @@ static struct file *path_openat(struct nameidata *nd,
 	int opened = 0;
 	int error;
 
+	//首先需要分配一个file结构，成功的话get_empty_filp会返回一个指向该结构的指针
+	//在这个函数里面会对权限、最大文件数进行检查。
 	file = get_empty_filp();
 	if (IS_ERR(file))
 		return file;
@@ -3449,16 +3580,28 @@ static struct file *path_openat(struct nameidata *nd,
 		goto out2;
 	}
 
+	/*
+		path_init是对真正遍历路径环境的初始化。
+		主要是设置nd
+		（nd是一个临时性的数据结构，用来存储遍历路径的中间结果）
+	*/
 	s = path_init(nd, flags);
-	if (IS_ERR(s)) {
+	if (IS_ERR(s)) 
+	{
 		put_filp(file);
 		return ERR_CAST(s);
 	}
+	/*
+		link_path_walk（）会走向目标，并在达到最终目标（最终目标需要交给另一个函数do_last单独处理）
+		所在目录的时候停下来
+	*/
 	while (!(error = link_path_walk(s, nd)) &&
-		(error = do_last(nd, file, op, &opened)) > 0) {
+		(error = do_last(nd, file, op, &opened)) > 0)
+	{
 		nd->flags &= ~(LOOKUP_OPEN|LOOKUP_CREATE|LOOKUP_EXCL);
 		s = trailing_symlink(nd);
-		if (IS_ERR(s)) {
+		if (IS_ERR(s)) 
+		{
 			error = PTR_ERR(s);
 			break;
 		}
@@ -3481,6 +3624,7 @@ out2:
 	return file;
 }
 
+
 struct file *do_filp_open(int dfd, struct filename *pathname,
 		const struct open_flags *op)
 {
@@ -3489,6 +3633,12 @@ struct file *do_filp_open(int dfd, struct filename *pathname,
 	struct file *filp;
 
 	set_nameidata(&nd, dfd, pathname);
+	/*
+		path_openat的主要作用是：
+		1. 为struct file申请内存空间，设置便利路径的初始状态
+		2. 然后遍历路径并找到最终目标的父节点
+		3. 最后根据目标类型和标志位完成open操作，最终返回一个新的file结构
+	*/
 	filp = path_openat(&nd, op, flags | LOOKUP_RCU);
 	if (unlikely(filp == ERR_PTR(-ECHILD)))
 		filp = path_openat(&nd, op, flags);

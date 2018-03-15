@@ -514,8 +514,20 @@ asmlinkage long sys_sendfile64(int out_fd, int in_fd,
 asmlinkage long sys_readlink(const char __user *path,
 				char __user *buf, int bufsiz);
 asmlinkage long sys_creat(const char __user *pathname, umode_t mode);
+
+/*
+	filename:要打开文件的路径名
+	flags：访问模式的一些标志
+	mode：如果该文件被创建所需要的许可权位掩码
+
+	@return 如果该系统调用成功，返回一个文件描述符，也就是指向文件对象的指针数组current->files->fd中分配给新文件的索引；
+	        否则，返回-1
+*/
 asmlinkage long sys_open(const char __user *filename,
 				int flags, umode_t mode);
+
+
+
 asmlinkage long sys_close(unsigned int fd);
 asmlinkage long sys_access(const char __user *filename, int mode);
 asmlinkage long sys_vhangup(void);

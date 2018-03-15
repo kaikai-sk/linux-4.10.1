@@ -2189,7 +2189,14 @@ __rmqueue_fallback(struct zone *zone, unsigned int order, int start_migratetype)
 
 /*
  * Do the hard work of removing an element from the buddy allocator.
- * Call me with the zone->lock already held.
+ * Call me with the zone->lock already held.  假设调用者已经禁止了本地中断并获得了保护本地伙伴系统的数据结构的zone->lock自旋锁
+ * 在管理区中找到一个空闲块。
+
+ * zone：管理区描述符的地址
+ * order：表示请求空闲页块大小的对数值（0，表示单页块，2^order）
+
+ * @return :如果分配成功，返回第一个被分配页框的页描述符。
+            否则，函数返回NULL
  */
 static struct page *__rmqueue(struct zone *zone, unsigned int order,
 				int migratetype)
@@ -2197,7 +2204,9 @@ static struct page *__rmqueue(struct zone *zone, unsigned int order,
 	struct page *page;
 
 	page = __rmqueue_smallest(zone, order, migratetype);
-	if (unlikely(!page)) {
+
+	if (unlikely(!page)) 
+	{
 		if (migratetype == MIGRATE_MOVABLE)
 			page = __rmqueue_cma_fallback(zone, order);
 
@@ -2439,10 +2448,15 @@ void mark_free_pages(struct zone *zone)
 /*
  * Free a 0-order page
  * cold == true ? free a cold page : free a hot page
+ * 释放单个页框到每CPU页框高速缓存
  */
 void free_hot_cold_page(struct page *page, bool cold)
 {
+	/*
+		获得包含该页框的内存管理区描述符地址
+	*/
 	struct zone *zone = page_zone(page);
+	
 	struct per_cpu_pages *pcp;
 	unsigned long flags;
 	unsigned long pfn = page_to_pfn(page);
@@ -2604,6 +2618,10 @@ static inline void zone_statistics(struct zone *preferred_zone, struct zone *z)
 
 /*
  * Allocate a page from the given zone. Use pcplists for order-0 allocations.
+ * 在指定的内存管理区中分配页框。它使用每CPU页框高速缓存来处理单一页框的请求
+ * 
+ * preferred_zone：内存管理区描述符的地址
+ * 
  */
 static inline
 struct page *buffered_rmqueue(struct zone *preferred_zone,
@@ -2615,7 +2633,8 @@ struct page *buffered_rmqueue(struct zone *preferred_zone,
 	struct page *page;
 	bool cold = ((gfp_flags & __GFP_COLD) != 0);
 
-	if (likely(order == 0)) {
+	if (likely(order == 0))
+	{
 		struct per_cpu_pages *pcp;
 		struct list_head *list;
 
@@ -2640,7 +2659,12 @@ struct page *buffered_rmqueue(struct zone *preferred_zone,
 			pcp->count--;
 
 		} while (check_new_pcp(page));
-	} else {
+	} 
+	/*
+		这里是order！=0的情况
+	*/
+	else 
+	{
 		/*
 		 * We most definitely don't want callers attempting to
 		 * allocate greater than order-1 page units with __GFP_NOFAIL.
@@ -2648,7 +2672,8 @@ struct page *buffered_rmqueue(struct zone *preferred_zone,
 		WARN_ON_ONCE((gfp_flags & __GFP_NOFAIL) && (order > 1));
 		spin_lock_irqsave(&zone->lock, flags);
 
-		do {
+		do
+		{
 			page = NULL;
 			if (alloc_flags & ALLOC_HARDER) {
 				page = __rmqueue_smallest(zone, order, MIGRATE_HIGHATOMIC);
@@ -2656,8 +2681,14 @@ struct page *buffered_rmqueue(struct zone *preferred_zone,
 					trace_mm_page_alloc_zone_locked(page, order, migratetype);
 			}
 			if (!page)
+			{
+				/*
+					调用__rmqueue函数从伙伴系统中分配所请求的页框
+				*/
 				page = __rmqueue(zone, order, migratetype);
+			}
 		} while (page && check_new_pages(page, order));
+
 		spin_unlock(&zone->lock);
 		if (!page)
 			goto failed;

@@ -1779,10 +1779,17 @@ static void shrink_readahead_size_eio(struct file *filp,
  * This is really ugly. But the goto's actually try to clarify some
  * of the logic when it comes to error handling etc.
  */
+ /**
+ * 从磁盘读入所请求的页,并把它们复制到用户态缓冲区.
+ */
 static ssize_t do_generic_file_read(struct file *filp, loff_t *ppos,
 		struct iov_iter *iter, ssize_t written)
 {
 	struct address_space *mapping = filp->f_mapping;
+	/**
+	 * 获得地址空间对象的所有者，即索引节点对象，该对象拥有填充了文件数据的页面。
+	 * 如果所读文件是块设备文件，那么所有者就不是由filep->f_dentry->d_inode指向的索引节点对象。
+	 */
 	struct inode *inode = mapping->host;
 	struct file_ra_state *ra = &filp->f_ra;
 	pgoff_t index;
@@ -1796,18 +1803,32 @@ static ssize_t do_generic_file_read(struct file *filp, loff_t *ppos,
 		return 0;
 	iov_iter_truncate(iter, inode->i_sb->s_maxbytes);
 
+	/**
+	 * 从文件指针*ppos导出第一个请求字节所在页的逻辑号,即地址空间中的页索引,并存放在index变量中
+	 */
 	index = *ppos >> PAGE_SHIFT;
 	prev_index = ra->prev_pos >> PAGE_SHIFT;
 	prev_offset = ra->prev_pos & (PAGE_SIZE-1);
 	last_index = (*ppos + iter->count + PAGE_SIZE-1) >> PAGE_SHIFT;
+
+	/**
+	 * 也把第一个请求字节在页内的偏移量存放在offset局部变量中.
+	 */
 	offset = *ppos & ~PAGE_MASK;
 
+	/* 循环，直到读取所有的页面 */
+	/**
+	 * 本循环读入包含请求字节的所有页.要读的字节数存放在desc->count中.
+	 */
 	for (;;) {
 		struct page *page;
 		pgoff_t end_index;
 		loff_t isize;
 		unsigned long nr, ret;
 
+		/**
+		 * 如果当前进程的TIF_NEED_RESCHED,如果置位,就进行一次调度.
+		 */
 		cond_resched();
 find_page:
 		if (fatal_signal_pending(current)) {
@@ -1827,16 +1848,23 @@ find_page:
 			page = find_get_page(mapping, index);
 			//如果这次仍然失败，则跳转到no_cached_page label处直接进行读取操作
 			if (unlikely(page == NULL))
+			{
+				/* 直接读取页面 */
 				goto no_cached_page;
+			}
 		}
+
 		//检测页标识是否设置了PG_readahead
-		if (PageReadahead(page)) {
+		//启动了预读
+		if (PageReadahead(page)) 
+		{
 			//如果设置了PG_readahead,就调用page_cache_async_readahead()启动一个异步读取操作
 			//这与前面的同步预读操作不同，这里并不等待预读操作的结束
 			page_cache_async_readahead(mapping,
 					ra, filp, page,
 					index, last_index - index);
 		}
+
 		//虽然页在缓存中了，但是其数据不一定是最新的，这里通过
 		//PageUpdate(page)来检查。如果数据不是最新的，则调用函数
 		//mapping—>a_ops->readpage()进行再次数据读取。
@@ -1880,6 +1908,10 @@ page_ok:
 
 		isize = i_size_read(inode);
 		end_index = (isize - 1) >> PAGE_SHIFT;
+		/**
+		 * 页超过文件所包含的页数,就减少页计数器.
+		 * 这种情况发生在正被本程序读的文件同时有其他进程正在删减.
+		 */
 		if (unlikely(!isize || index > end_index)) {
 			put_page(page);
 			goto out;
@@ -2219,6 +2251,10 @@ int filemap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
 	int error;
 	struct file *file = vma->vm_file;
+	/*
+		由于系统中同一个文件的inode相同，所以此时所有的mmap将会看到一个相同的address_space
+		进而导致看到的物理内容相同
+	*/
 	struct address_space *mapping = file->f_mapping;
 	struct file_ra_state *ra = &file->f_ra;
 	struct inode *inode = mapping->host;

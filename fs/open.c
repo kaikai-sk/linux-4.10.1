@@ -1038,27 +1038,55 @@ EXPORT_SYMBOL(filp_clone_open);
 long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 {
 	struct open_flags op;
+	将用户态的flags和mode转换成对应的内核态标志
 	int fd = build_open_flags(flags, mode, &op);
 	struct filename *tmp;
 
 	if (fd)
 		return fd;
 
+	/*
+		由于filename是用户态的内存缓冲区（使用了__user修饰），
+		因此通过getname（）将文件名从用户态拷贝至内核态
+	*/
+	//从进程地址空间读取该文件的路径名
 	tmp = getname(filename);
 	if (IS_ERR(tmp))
 		return PTR_ERR(tmp);
 
+   /*
+	    在内核中，每个打开的文件由一个文件描述符表示 
+	    该描述符在特定于进程的数组中充当位置索引(数组是 
+	    task_struct->files->fd_arry)，该数组的元素包含了file结构，其中 
+	    包括每个打开文件的所有必要信息。因此，调用下面 
+	    函数查找一个未使用的文件描述符,返回的是上面 
+	    说的数组的下标 
+   */  
+	/*
+		为即将打开的文件分配文件描述符，也就是在当前的进程的files数组中寻找一个未使用的位置
+	*/
 	fd = get_unused_fd_flags(flags);
-	if (fd >= 0) {
+	if (fd >= 0) 
+	{
+        /*fd获取成功则开始打开文件，此函数是主要完成打开功能的函数*/
+		//为文件创建file结构体
 		struct file *f = do_filp_open(dfd, tmp, &op);
-		if (IS_ERR(f)) {
+		//如果创建file失败，通过put_unused_fd将已经分配的fd返回至系统
+		//并根据file生成错误的fd
+		if (IS_ERR(f)) 
+		{
 			put_unused_fd(fd);
 			fd = PTR_ERR(f);
-		} else {
+		} 
+		//如果创建file成功
+		else
+		{
 			fsnotify_open(f);
+			//通过fd_install将fd和file进行关联
 			fd_install(fd, f);
 		}
 	}
+    //通过putname释放在内核分配的缓冲区路径
 	putname(tmp);
 	return fd;
 }
