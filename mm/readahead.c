@@ -125,18 +125,33 @@ static int read_pages(struct address_space *mapping, struct file *filp,
 
 	blk_start_plug(&plug);
 
-	if (mapping->a_ops->readpages) {
+	//如果	存在readpages指针，使用readpages读取数据
+	if (mapping->a_ops->readpages) 
+	{
+		//读取一段数据
 		ret = mapping->a_ops->readpages(filp, mapping, pages, nr_pages);
-		/* Clean up the remaining pages */
+		/* Clean up the remaining pages 
+			清理页
+		*/
 		put_pages_list(pages);
 		goto out;
 	}
 
-	for (page_idx = 0; page_idx < nr_pages; page_idx++) {
+	/*
+		对于某些不存在readpages接口的设备，使用readpage函数循环读取
+	*/
+	for (page_idx = 0; page_idx < nr_pages; page_idx++) 
+	{
+		//获取page指针
 		struct page *page = lru_to_page(pages);
+		//将这个page从page pool中删除
 		list_del(&page->lru);
-		if (!add_to_page_cache_lru(page, mapping, page->index, gfp))
+		if (!add_to_page_cache_lru(page, mapping, page->index, gfp)) //将该页面加入page cache
+		{
+			//调用回调函数，将该页从磁盘上读取出来
 			mapping->a_ops->readpage(filp, page);
+		}
+		//page_cache_realease(page)清理页
 		put_page(page);
 	}
 	ret = 0;
@@ -152,14 +167,19 @@ out:
  * the pages first, then submits them all for I/O. This avoids the very bad
  * behaviour which would occur if page allocations are causing VM writeback.
  * We really don't want to intermingle reads and writes like that.
+ * 
+ * __do_page_cache_readahead（）实际上读取一块磁盘。 
+ * 它首先分配所有页面，然后将它们全部提交给I / O。 
+ * 这可以避免页面分配导致虚拟机回写时发生的非常不好的行为。 我们真的不想像这样混淆读写。
  *
- * Returns the number of pages requested, or the maximum amount of I/O allowed.
-
  * mapping：文件拥有者的addresss_space对象
  * filp：文件对象
  * offset：页面在文件内的偏移量
  * nr_to_read：完成当前读操作需要的页面数
  * lookahead_size：异步预读大小
+ * 
+ * Returns the number of pages requested, or the maximum amount of I/O allowed.
+ * 返回请求的页数或者是最大的被允许的IO数
  */
 int __do_page_cache_readahead(struct address_space *mapping, struct file *filp,
 			pgoff_t offset, unsigned long nr_to_read,
@@ -171,12 +191,15 @@ int __do_page_cache_readahead(struct address_space *mapping, struct file *filp,
 	LIST_HEAD(page_pool);
 	int page_idx;
 	int ret = 0;
+	//获得文件大小
 	loff_t isize = i_size_read(inode);
 	gfp_t gfp_mask = readahead_gfp_mask(mapping);
 
+	//如果文件大小等于0，直接返回
 	if (isize == 0)
 		goto out;
 
+	//计算文件的长度，以页为单位，并且要加1
 	end_index = ((isize - 1) >> PAGE_SHIFT);
 
 	/*
@@ -188,14 +211,18 @@ int __do_page_cache_readahead(struct address_space *mapping, struct file *filp,
 	{
 		pgoff_t page_offset = offset + page_idx;
 
+		//判断是否到了文件的尾部
 		if (page_offset > end_index)
 			break;
 
 		//这三行代码的功能：
 		//在预读过程中，可能有其他进程已经将某些页面读进内存，
 		//因此在此检查页面是否已经在cache中
+		//使用Ready-Copy Update锁
 		rcu_read_lock();
+		//搜索页缓存的基树，看要预取的页是否已经在page cache中了
 		page = radix_tree_lookup(&mapping->page_tree, page_offset);
+		//释放锁
 		rcu_read_unlock();
 		
 		if (page && !radix_tree_exceptional_entry(page))
@@ -206,6 +233,7 @@ int __do_page_cache_readahead(struct address_space *mapping, struct file *filp,
 		if (!page)
 			break;
 
+//		初始化该页面
 		page->index = page_offset;
 		//并将页面加入到页面池中
 		list_add(&page->lru, &page_pool);
@@ -512,7 +540,9 @@ ondemand_readahead(struct address_space *mapping,
 
 	/*
 	 * standalone, small random read
+	 * 独立 小的随机的读
 	 * Read as is, and do not pollute the readahead state.
+	 * 按原样读，不要污染预读的状态
 	 */
 	return __do_page_cache_readahead(mapping, filp, offset, req_size, 0);
 
@@ -527,8 +557,13 @@ readit:
 	 * Will this read hit the readahead marker made by itself?
 	 * If so, trigger the readahead marker hit now, and merge
 	 * the resulted next readahead window into the current one.
+	 *
+	 * 这次读会不会命中自己制作的预读标记？？
+	 * 如果是这样的话，立即触发预读标记命中。
+	 * 并将结果的下一个窗口合并到当前预读窗口中
 	 */
-	if (offset == ra->start && ra->size == ra->async_size) {
+	if (offset == ra->start && ra->size == ra->async_size) 
+	{
 		//get_next_ra_size() 计算下一个预读窗口大小。
 		ra->async_size = get_next_ra_size(ra, max_pages);
 		ra->size += ra->async_size;
