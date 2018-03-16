@@ -448,38 +448,50 @@ static ssize_t new_sync_read(struct file *filp, char __user *buf, size_t len, lo
 ssize_t __vfs_read(struct file *file, char __user *buf, size_t count,
 		   loff_t *pos)
 {
+	/*如果定义了读方法，则用他来传送数据*/ 
 	if (file->f_op->read)
 		return file->f_op->read(file, buf, count, pos);
+	/*通用读取例程*/  
 	else if (file->f_op->read_iter)
+	{
+		//通用文件模型读方法
 		return new_sync_read(file, buf, count, pos);
+	}
 	else
 		return -EINVAL;
 }
+		   
 EXPORT_SYMBOL(__vfs_read);
 
 ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 {
 	ssize_t ret;
 
+	 /*如果标志中不允许所请求的访问,则返回*/
+	//判断文件是否可读 
 	if (!(file->f_mode & FMODE_READ))
 		return -EBADF;
+	//是否定义文件读方法  
 	if (!(file->f_mode & FMODE_CAN_READ))
 		return -EINVAL;
+	/*检查参数*/
 	if (unlikely(!access_ok(VERIFY_WRITE, buf, count)))
 		return -EFAULT;
-
+	/*对要访问的文件部分检查是否有冲突的强制锁*/  
 	ret = rw_verify_area(READ, file, pos, count);
-	if (!ret) {
+	if (!ret) 
+	{
 		if (count > MAX_RW_COUNT)
 			count =  MAX_RW_COUNT;
 		ret = __vfs_read(file, buf, count, pos);
-		if (ret > 0) {
+		if (ret > 0) 
+		{
 			fsnotify_access(file);
 			add_rchar(current, ret);
 		}
 		inc_syscr(current);
 	}
-
+	/*返回实际传送字节数*/  
 	return ret;
 }
 

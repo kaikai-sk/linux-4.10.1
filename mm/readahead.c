@@ -415,6 +415,7 @@ ondemand_readahead(struct address_space *mapping,
 		   unsigned long req_size)
 {
 	struct backing_dev_info *bdi = inode_to_bdi(mapping->host);
+	//最大的预取窗口
 	unsigned long max_pages = ra->ra_pages;
 	pgoff_t prev_offset;
 
@@ -438,10 +439,12 @@ ondemand_readahead(struct address_space *mapping,
 	 * It's the expected callback offset, assume sequential access.
 	 * Ramp up sizes, and push forward the readahead window.
 
-	 *
+	 * 这是预期的回调分支,假设顺序访问。
+	 * 加大尺寸，并推进预读窗口
 	 */
 	if ((offset == (ra->start + ra->size - ra->async_size) ||
-	     offset == (ra->start + ra->size))) {
+	     offset == (ra->start + ra->size)))
+	{
 		ra->start += ra->size;
 		ra->size = get_next_ra_size(ra, max_pages);
 		ra->async_size = ra->size;
@@ -453,8 +456,14 @@ ondemand_readahead(struct address_space *mapping,
 	 * E.g. interleaved reads.
 	 * Query the pagecache for async_size, which normally equals to
 	 * readahead size. Ramp it up and use it as the new readahead size.
+	 * 
+	 * 在没有合法的readahead状态的时候命中一个标记的页面
+	 * 例如，交织读
+	 * 查询async_size的pagecache，async_size通常等于readadhead的大小。
+	 * 将其升级并将用作新的预读大小
 	 */
-	if (hit_readahead_marker) {
+	if (hit_readahead_marker) 
+	{
 		pgoff_t start;
 
 		rcu_read_lock();
@@ -474,6 +483,7 @@ ondemand_readahead(struct address_space *mapping,
 
 	/*
 	 * oversize read
+	 * 超大的读
 	 */
 	if (req_size > max_pages)
 		goto initial_readahead;
@@ -482,6 +492,10 @@ ondemand_readahead(struct address_space *mapping,
 	 * sequential cache miss
 	 * trivial case: (offset - prev_offset) == 1
 	 * unaligned reads: (offset - prev_offset) == 0
+
+	 * 顺序缓存未命中
+	 * 微不足道的情况 (offset - prev_offset) == 1
+	 * 未对齐的读取：(offset - prev_offset) == 0
 	 */
 	prev_offset = (unsigned long long)ra->prev_pos >> PAGE_SHIFT;
 	if (offset - prev_offset <= 1UL)
@@ -490,6 +504,8 @@ ondemand_readahead(struct address_space *mapping,
 	/*
 	 * Query the page cache and look for the traces(cached history pages)
 	 * that a sequential stream would leave behind.
+
+	 * 查询page cache并且查找顺序流可能会留下的trace（缓存的历史记录页面）
 	 */
 	if (try_context_readahead(mapping, ra, offset, req_size, max_pages))
 		goto readit;

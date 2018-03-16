@@ -135,7 +135,8 @@ struct bdi_writeback {
 #endif
 };
 
-struct backing_dev_info {
+struct backing_dev_info 
+{
 	struct list_head bdi_list;
 	unsigned long ra_pages;	/* max readahead in PAGE_SIZE units */
 	unsigned long io_pages;	/* max allowed IO size */

@@ -1847,6 +1847,9 @@ find_page:
 			//到page cache中查找该项
 			page = find_get_page(mapping, index);
 			//如果这次仍然失败，则跳转到no_cached_page label处直接进行读取操作
+			/*
+				也就是说，这里NULL的概率比较小
+			*/
 			if (unlikely(page == NULL))
 			{
 				/* 直接读取页面 */
