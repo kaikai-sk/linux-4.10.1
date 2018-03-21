@@ -533,6 +533,7 @@ unsigned long mem_cgroup_soft_limit_reclaim(pg_data_t *pgdat, int order,
 						gfp_t gfp_mask,
 						unsigned long *total_scanned);
 
+
 static inline void mem_cgroup_count_vm_event(struct mm_struct *mm,
 					     enum vm_event_item idx)
 {
@@ -546,19 +547,22 @@ static inline void mem_cgroup_count_vm_event(struct mm_struct *mm,
 	if (unlikely(!memcg))
 		goto out;
 
-	switch (idx) {
-	case PGFAULT:
-		this_cpu_inc(memcg->stat->events[MEM_CGROUP_EVENTS_PGFAULT]);
-		break;
-	case PGMAJFAULT:
-		this_cpu_inc(memcg->stat->events[MEM_CGROUP_EVENTS_PGMAJFAULT]);
-		break;
-	default:
-		BUG();
+	switch (idx) 
+	{
+		case PGFAULT:
+			this_cpu_inc(memcg->stat->events[MEM_CGROUP_EVENTS_PGFAULT]);
+			break;
+		case PGMAJFAULT:
+			this_cpu_inc(memcg->stat->events[MEM_CGROUP_EVENTS_PGMAJFAULT]);
+			break;
+		default:
+			BUG();
 	}
 out:
 	rcu_read_unlock();
 }
+
+						 
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
 void mem_cgroup_split_huge_fixup(struct page *head);
 #endif

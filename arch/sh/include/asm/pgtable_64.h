@@ -50,6 +50,9 @@ static __inline__ void set_pte(pte_t *pteptr, pte_t pteval)
 /* To find an entry in a generic PGD. */
 #define pgd_index(address) (((address) >> PGDIR_SHIFT) & (PTRS_PER_PGD-1))
 #define __pgd_offset(address) pgd_index(address)
+/*
+*获得pgd表的起始地址
+*/
 #define pgd_offset(mm, address) ((mm)->pgd+pgd_index(address))
 
 /* To find an entry in a kernel PGD. */

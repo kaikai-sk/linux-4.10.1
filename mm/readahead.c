@@ -301,13 +301,19 @@ int force_page_cache_readahead(struct address_space *mapping, struct file *filp,
  * for small size, x 4 for medium, and x 2 for large
  * for 128k (32 page) max ra
  * 1-8 page = 32k initial, > 8 page = 128k initial
+ *
+ * size: 请求的页面数量
+ * max:  预读窗口的最大页面数量
  */
 static unsigned long get_init_ra_size(unsigned long size, unsigned long max)
 {
+	//计算出跟size大小最接近的2^
 	unsigned long newsize = roundup_pow_of_two(size);
 
 	if (newsize <= max / 32)
+	{
 		newsize = newsize * 4;
+	}
 	else if (newsize <= max / 4)
 		newsize = newsize * 2;
 	else
@@ -323,13 +329,16 @@ static unsigned long get_init_ra_size(unsigned long size, unsigned long max)
 static unsigned long get_next_ra_size(struct file_ra_state *ra,
 						unsigned long max)
 {
+	//当前窗口大小
 	unsigned long cur = ra->size;
 	unsigned long newsize;
 
 	if (cur < max / 16)
 		newsize = 4 * cur;
 	else
+	{
 		newsize = 2 * cur;
+	}
 
 	return min(newsize, max);
 }
@@ -470,8 +479,14 @@ ondemand_readahead(struct address_space *mapping,
 	 * 这是预期的回调分支,假设顺序访问。
 	 * 加大尺寸，并推进预读窗口
 	 */
+	/*
+		 如果:
+     * 1. 顺序读(本次读偏移为上次读偏移(ra->start) + 读大小(ra->size,包含预读量) - 
+     *  上次预读大小(ra->async_size))
+     * 2. offset == (ra->start + ra->size)???
+	*/
 	if ((offset == (ra->start + ra->size - ra->async_size) ||
-	     offset == (ra->start + ra->size)))
+	     offset == (ra->start + ra->size))) //判定为顺序读
 	{
 		ra->start += ra->size;
 		ra->size = get_next_ra_size(ra, max_pages);

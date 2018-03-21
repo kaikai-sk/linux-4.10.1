@@ -154,11 +154,16 @@ void do_bad_area(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
  * Check that the permissions on the VMA allow for the fault which occurred.
  * If we encountered a write fault, we must have write permission, otherwise
  * we allow any permission.
+ * 检查VMA上的权限是否允许发生的故障。 
+ * 如果我们遇到写入错误，我们必须有写入权限，否则我们允许任何权限。
  */
 static inline bool access_error(unsigned int fsr, struct vm_area_struct *vma)
 {
 	unsigned int mask = VM_READ | VM_WRITE | VM_EXEC;
 
+	/*
+	* fsr从第一段的汇编中得出意义，他是r1.状态。 这里看地址异常时候 是写还是其他。并复制到mask中  
+	*/
 	if (!(fsr ^ 0x12))	/* write? */
 		mask = VM_WRITE;
 	if (fsr & FSR_LNX_PF)

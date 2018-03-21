@@ -1,8 +1,9 @@
+#定义了当前源码的版本和名称信息
 VERSION = 4
-PATCHLEVEL = 10
-SUBLEVEL = 1
+PATCHLEVEL = 9
+SUBLEVEL = 76
 EXTRAVERSION =
-NAME = Fearless Coyote
+NAME = Roaring Lionus
 
 # *DOCUMENTATION*
 # To see a list of typical targets execute "make help"
@@ -13,15 +14,19 @@ NAME = Fearless Coyote
 # o Do not use make's built-in rules and variables
 #   (this increases performance and avoids hard-to-debug behaviour);
 # o Look for make include files relative to root of kernel src
+#因为make工具内置的隐含规则和变量设置可能会导致一些无法预料的结果，
+#而使得调试变得更困难。因此，应该将他们禁用掉。
 MAKEFLAGS += -rR --include-dir=$(CURDIR)
 
 # Avoid funny character set dependencies
+#修改C语言区域设置
 unexport LC_ALL
 LC_COLLATE=C
 LC_NUMERIC=C
 export LC_COLLATE LC_NUMERIC
 
 # Avoid interference with shell env settings
+#避免shell环境设置的干扰
 unexport GREP_OPTIONS
 
 # We are using a recursive build, so we need to do a little thinking
@@ -65,7 +70,7 @@ unexport GREP_OPTIONS
 #
 # To put more focus on warnings, be less verbose as default
 # Use 'make V=1' to see the full commands
-
+# 设置编译信息的输出模式
 ifeq ("$(origin V)", "command line")
   KBUILD_VERBOSE = $(V)
 endif
@@ -83,6 +88,12 @@ endif
 
 # If the user is running make -s (silent mode), suppress echoing of
 # commands
+#如果在命令行中对变量V赋值（例如：make V=1），则输出full模式；否则，输出quiet模式。
+#同时对变量KBUILD_VERBOSE赋值。
+#如果命令行中有 -s 的参数，则输出slient模式。
+#full模式：输出完整编译命令。 
+#quiet模式：输出Compiling ***的格式。 
+#silent模式：输出任何信息。
 
 ifneq ($(filter 4.%,$(MAKE_VERSION)),)	# make-4
 ifneq ($(filter %s ,$(firstword x$(MAKEFLAGS))),)
@@ -117,6 +128,11 @@ ifeq ($(KBUILD_SRC),)
 
 # OK, Make called in directory where kernel src resides
 # Do we want to locate output files in a separate directory?
+# Kbuild支持将输出文件保存在单独的目录中，由两种方式可以实现：
+# 1. 在命令行中设置变量O，例如：make O=dir/to/store/output/files/
+# 2. 设置变量KBUILD_OUTPUT的值，例如export KBUILD_OUTPUT=dir/to/store/output/files/ 
+#    变量O的优先级高于变量KBUILD_OUTPUT。 
+
 ifeq ("$(origin O)", "command line")
   KBUILD_OUTPUT := $(O)
 endif
@@ -161,6 +177,7 @@ ifeq ($(skip-makefile),)
 # Do not print "Entering directory ...",
 # but we want to display it when entering to the output directory
 # so that IDEs/editors are able to understand relative filenames.
+# 取消Enter/Leaving directory…的信息
 MAKEFLAGS += --no-print-directory
 
 # Call a source code checker (by default, "sparse") as part of the
@@ -172,6 +189,11 @@ MAKEFLAGS += --no-print-directory
 #
 # See the file "Documentation/sparse.txt" for more details, including
 # where to get the "sparse" utility.
+# 设置是否进行对源代码的检查
+# 对命令行参数变量C进行设置，可以选择使用sparse工具检查源代码。
+# 1. 如果C=1，则只对修改的源代码进行检查；
+# 2. 如果C=2，则对全部代码进行检查；
+# 3. 如果不设置C的值，则不进行检查。
 
 ifeq ("$(origin C)", "command line")
   KBUILD_CHECKSRC = $(C)
@@ -183,6 +205,9 @@ endif
 # Use make M=dir to specify directory of external module to build
 # Old syntax make ... SUBDIRS=$PWD is still supported
 # Setting the environment variable KBUILD_EXTMOD take precedence
+# 编译外部模块
+# 如果编译外部模块，则对命令行参数变量M进行赋值
+#
 ifdef SUBDIRS
   KBUILD_EXTMOD ?= $(SUBDIRS)
 endif
@@ -200,7 +225,9 @@ else
 _all: modules
 endif
 
+#设置目录变量
 ifeq ($(KBUILD_SRC),)
+
         # building in the source tree
         srctree := .
 else
@@ -252,6 +279,9 @@ SUBARCH := $(shell uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
 # "make" in the configured kernel build directory always uses that.
 # Default value for CROSS_COMPILE is not to prefix executables
 # Note: Some architectures assign CROSS_COMPILE in their arch/*/Makefile
+# 设置目标平台
+# 如果设置了变量ARCH，则即是设置了目标平台；否则，当前编译环境平台就是目标平台。
+#
 ARCH		?= $(SUBARCH)
 CROSS_COMPILE	?= $(CONFIG_CROSS_COMPILE:"%"=%)
 
@@ -289,21 +319,26 @@ ifeq ($(ARCH),tilegx)
 endif
 
 # Where to locate arch specific headers
+#设置与平台相关的头文件的目录
 hdr-arch  := $(SRCARCH)
 
+#设置configure文件
 KCONFIG_CONFIG	?= .config
 export KCONFIG_CONFIG
 
 # SHELL used by kbuild
+#设置调用bash的短名称
 CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
 	  else if [ -x /bin/bash ]; then echo /bin/bash; \
 	  else echo sh; fi ; fi)
 
+#设置针对编译环境的变量
 HOSTCC       = gcc
 HOSTCXX      = g++
 HOSTCFLAGS   = -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -std=gnu89
 HOSTCXXFLAGS = -O2
 
+#如果编译器为clang，则添加其特有的编译参数
 ifeq ($(shell $(HOSTCC) -v 2>&1 | grep -c "clang version"), 1)
 HOSTCFLAGS  += -Wno-unused-value -Wno-unused-parameter \
 		-Wno-missing-field-initializers -fno-delete-null-pointer-checks
@@ -311,6 +346,7 @@ endif
 
 # Decide whether to build built-in, modular, or both.
 # Normally, just do built-in.
+# 判断是编译内核还是模块还是两者均是
 
 KBUILD_MODULES :=
 KBUILD_BUILTIN := 1
@@ -340,10 +376,15 @@ export KBUILD_MODULES KBUILD_BUILTIN
 export KBUILD_CHECKSRC KBUILD_SRC KBUILD_EXTMOD
 
 # We need some generic definitions (do not try to remake the file).
+#包含scripts/Kbuild.include文件
 scripts/Kbuild.include: ;
+# 包含Makefile自定义函数文件Kbuild.include
 include scripts/Kbuild.include
+# 该条语句将文件 scripts/Kbuild.include 包含进顶层Makefile文件中，
+# Kbuild.include 文件中定义了Makefile 文件用到的自定义函数。
 
 # Make variables (CC, etc...)
+#定义关于编译工具的变量
 AS		= $(CROSS_COMPILE)as
 LD		= $(CROSS_COMPILE)ld
 CC		= $(CROSS_COMPILE)gcc
@@ -370,11 +411,9 @@ LDFLAGS_MODULE  =
 CFLAGS_KERNEL	=
 AFLAGS_KERNEL	=
 LDFLAGS_vmlinux =
-CFLAGS_GCOV	= -fprofile-arcs -ftest-coverage -fno-tree-loop-im -Wno-maybe-uninitialized
-CFLAGS_KCOV	:= $(call cc-option,-fsanitize-coverage=trace-pc,)
-
 
 # Use USERINCLUDE when you must reference the UAPI directories only.
+# 设置用户态头文件目录
 USERINCLUDE    := \
 		-I$(srctree)/arch/$(hdr-arch)/include/uapi \
 		-I$(objtree)/arch/$(hdr-arch)/include/generated/uapi \
@@ -384,6 +423,7 @@ USERINCLUDE    := \
 
 # Use LINUXINCLUDE when you must reference the include/ directory.
 # Needed to be compatible with the O= option
+# 设置内核态头文件目录
 LINUXINCLUDE    := \
 		-I$(srctree)/arch/$(hdr-arch)/include \
 		-I$(objtree)/arch/$(hdr-arch)/include/generated/uapi \
@@ -393,23 +433,23 @@ LINUXINCLUDE    := \
 
 LINUXINCLUDE	+= $(filter-out $(LINUXINCLUDE),$(USERINCLUDE))
 
-KBUILD_CPPFLAGS := -D__KERNEL__
-
+#定义Kbuild编译参数
+KBUILD_AFLAGS   := -D__ASSEMBLY__
 KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -fno-strict-aliasing -fno-common \
 		   -Werror-implicit-function-declaration \
 		   -Wno-format-security \
-		   -std=gnu89 $(call cc-option,-fno-PIE)
-
-
+		   -std=gnu89
+KBUILD_CPPFLAGS := -D__KERNEL__
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
-KBUILD_AFLAGS   := -D__ASSEMBLY__ $(call cc-option,-fno-PIE)
 KBUILD_AFLAGS_MODULE  := -DMODULE
 KBUILD_CFLAGS_MODULE  := -DMODULE
 KBUILD_LDFLAGS_MODULE := -T $(srctree)/scripts/module-common.lds
+GCC_PLUGINS_CFLAGS :=
 
 # Read KERNELRELEASE from include/config/kernel.release (if it exists)
+# 设置内核版本
 KERNELRELEASE = $(shell cat include/config/kernel.release 2> /dev/null)
 KERNELVERSION = $(VERSION)$(if $(PATCHLEVEL),.$(PATCHLEVEL)$(if $(SUBLEVEL),.$(SUBLEVEL)))$(EXTRAVERSION)
 
@@ -420,7 +460,7 @@ export MAKE AWK GENKSYMS INSTALLKERNEL PERL PYTHON UTS_MACHINE
 export HOSTCXX HOSTCXXFLAGS LDFLAGS_MODULE CHECK CHECKFLAGS
 
 export KBUILD_CPPFLAGS NOSTDINC_FLAGS LINUXINCLUDE OBJCOPYFLAGS LDFLAGS
-export KBUILD_CFLAGS CFLAGS_KERNEL CFLAGS_MODULE CFLAGS_GCOV CFLAGS_KCOV CFLAGS_KASAN CFLAGS_UBSAN
+export KBUILD_CFLAGS CFLAGS_KERNEL CFLAGS_MODULE CFLAGS_KASAN CFLAGS_UBSAN
 export KBUILD_AFLAGS AFLAGS_KERNEL AFLAGS_MODULE
 export KBUILD_AFLAGS_MODULE KBUILD_CFLAGS_MODULE KBUILD_LDFLAGS_MODULE
 export KBUILD_AFLAGS_KERNEL KBUILD_CFLAGS_KERNEL
@@ -429,6 +469,7 @@ export KBUILD_ARFLAGS
 # When compiling out-of-tree modules, put MODVERDIR in the module
 # tree rather than in the kernel tree. The kernel tree might
 # even be read-only.
+# 编译模块时的目录
 export MODVERDIR := $(if $(KBUILD_EXTMOD),$(firstword $(KBUILD_EXTMOD))/).tmp_versions
 
 # Files to ignore in find ... statements
@@ -536,6 +577,7 @@ ifeq ($(config-targets),1)
 # Read arch specific Makefile to set KBUILD_DEFCONFIG as needed.
 # KBUILD_DEFCONFIG may point out an alternative default configuration
 # used for 'make defconfig'
+#包含arch/$(SRCARCH)/的Makefile文件
 include arch/$(SRCARCH)/Makefile
 export KBUILD_DEFCONFIG KBUILD_KCONFIG
 
@@ -620,6 +662,12 @@ endif
 # Defaults to vmlinux, but the arch makefile usually adds further targets
 all: vmlinux
 
+KBUILD_CFLAGS	+= $(call cc-option,-fno-PIE)
+KBUILD_AFLAGS	+= $(call cc-option,-fno-PIE)
+CFLAGS_GCOV	:= -fprofile-arcs -ftest-coverage -fno-tree-loop-im $(call cc-disable-warning,maybe-uninitialized,)
+CFLAGS_KCOV	:= $(call cc-option,-fsanitize-coverage=trace-pc,)
+export CFLAGS_GCOV CFLAGS_KCOV
+
 # The arch Makefile can set ARCH_{CPP,A,C}FLAGS to override the default
 # values of the respective KBUILD_* variables
 ARCH_CPPFLAGS :=
@@ -629,6 +677,9 @@ include arch/$(SRCARCH)/Makefile
 
 KBUILD_CFLAGS	+= $(call cc-option,-fno-delete-null-pointer-checks,)
 KBUILD_CFLAGS	+= $(call cc-disable-warning,frame-address,)
+KBUILD_CFLAGS	+= $(call cc-disable-warning, format-truncation)
+KBUILD_CFLAGS	+= $(call cc-disable-warning, format-overflow)
+KBUILD_CFLAGS	+= $(call cc-disable-warning, int-in-bool-context)
 
 ifdef CONFIG_LD_DEAD_CODE_DATA_ELIMINATION
 KBUILD_CFLAGS	+= $(call cc-option,-ffunction-sections,)
@@ -650,6 +701,12 @@ KBUILD_CFLAGS += $(call cc-ifversion, -lt, 0409, \
 
 # Tell gcc to never replace conditional load with a non-conditional one
 KBUILD_CFLAGS	+= $(call cc-option,--param=allow-store-data-races=0)
+
+# check for 'asm goto'
+ifeq ($(shell $(CONFIG_SHELL) $(srctree)/scripts/gcc-goto.sh $(CC) $(KBUILD_CFLAGS)), y)
+	KBUILD_CFLAGS += -DCC_HAVE_ASM_GOTO
+	KBUILD_AFLAGS += -DCC_HAVE_ASM_GOTO
+endif
 
 include scripts/Makefile.gcc-plugins
 
@@ -778,6 +835,9 @@ KBUILD_CFLAGS += $(call cc-disable-warning, pointer-sign)
 # disable invalid "can't wrap" optimizations for signed / pointers
 KBUILD_CFLAGS	+= $(call cc-option,-fno-strict-overflow)
 
+# Make sure -fstack-check isn't enabled (like gentoo apparently did)
+KBUILD_CFLAGS  += $(call cc-option,-fno-stack-check,)
+
 # conserve stack if available
 KBUILD_CFLAGS   += $(call cc-option,-fconserve-stack)
 
@@ -795,12 +855,6 @@ KBUILD_CFLAGS   += $(call cc-option,-Werror=incompatible-pointer-types)
 
 # use the deterministic mode of AR if available
 KBUILD_ARFLAGS := $(call ar-option,D)
-
-# check for 'asm goto'
-ifeq ($(shell $(CONFIG_SHELL) $(srctree)/scripts/gcc-goto.sh $(CC) $(KBUILD_CFLAGS)), y)
-	KBUILD_CFLAGS += -DCC_HAVE_ASM_GOTO
-	KBUILD_AFLAGS += -DCC_HAVE_ASM_GOTO
-endif
 
 include scripts/Makefile.kasan
 include scripts/Makefile.extrawarn

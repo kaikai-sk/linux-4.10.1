@@ -50,12 +50,18 @@ static inline void pagefault_enable(void)
 /*
  * The pagefault handler is in general disabled by pagefault_disable() or
  * when in irq context (via in_atomic()).
- *
+ * 这个缺页异常处理器通常会被pagefault_disable()或者在irq的上下文时被关掉
+ * 
  * This function should only be used by the fault handlers. Other users should
  * stick to pagefault_disabled().
+ * 这个函数只能被缺页处理器调用。其他的用户应该坚持pagefault_disabled（）;
+ *
  * Please NEVER use preempt_disable() to disable the fault handler. With
  * !CONFIG_PREEMPT_COUNT, this is like a NOP. So the handler won't be disabled.
  * in_atomic() will report different values based on !CONFIG_PREEMPT_COUNT.
+ * 请不要使用preempt_disable（）来禁用错误处理程序。 
+ * 使用！CONFIG_PREEMPT_COUNT，这就像一个NOP。 所以处理程序不会被禁用。 
+ * in_atomic（）将基于！CONFIG_PREEMPT_COUNT报告不同的值。
  */
 #define faulthandler_disabled() (pagefault_disabled() || in_atomic())
 

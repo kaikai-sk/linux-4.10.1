@@ -3504,22 +3504,35 @@ static inline bool vma_is_accessible(struct vm_area_struct *vma)
  * These routines also need to handle stuff like marking pages dirty
  * and/or accessed for architectures that don't do it in hardware (most
  * RISC architectures).  The early dirtying is also good on the i386.
- *
+ * 这些例程还需要处理诸如将页面标记为脏和/或针对不以硬件
+ *（大多数RISC体系结构）执行的体系结构访问的内容。 
+ * i386上的早期弄脏也很好。
+ * 
  * There is also a hook called "update_mmu_cache()" that architectures
  * with external mmu caches can use to update those (ie the Sparc or
  * PowerPC hashed page tables that act as extended TLBs).
+ * 还有一个名为“update_mmu_cache（）”的钩子，
+ * 该架构可以使用外部mmu缓存架构来更新这些（即充当扩展TLB的Sparc或PowerPC散列页表）。
  *
  * We enter with non-exclusive mmap_sem (to exclude vma changes, but allow
  * concurrent faults).
+ * 我们输入非排他性的mmap_sem（排除vma更改，但允许并发故障），
+ * 并且pte映射但尚未锁定。 我们返回pte未映射和解锁。
  *
  * The mmap_sem may have been released depending on flags and our return value.
  * See filemap_fault() and __lock_page_or_retry().
+ * 根据标志和我们的返回值，mmap_sem可能已被释放。 请参阅filemap_fault（）和__lock_page_or_retry（）。
+ */
+ 
+ /**
+ * handle_pte_fault函数检查address地址所对应的页表项。并决定如何为进程分配一个新页框。
  */
 static int handle_pte_fault(struct vm_fault *vmf)
 {
 	pte_t entry;
 
-	if (unlikely(pmd_none(*vmf->pmd))) {
+	if (unlikely(pmd_none(*vmf->pmd)))
+	{
 		/*
 		 * Leave __pte_alloc() until later: because vm_ops->fault may
 		 * want to allocate huge page, and if we expose page table
@@ -3527,7 +3540,9 @@ static int handle_pte_fault(struct vm_fault *vmf)
 		 * concurrent faults and from rmap lookups.
 		 */
 		vmf->pte = NULL;
-	} else {
+	}
+	else 
+	{
 		/* See comment in pte_alloc_one_map() */
 		if (pmd_trans_unstable(vmf->pmd) || pmd_devmap(*vmf->pmd))
 			return 0;
@@ -3549,17 +3564,27 @@ static int handle_pte_fault(struct vm_fault *vmf)
 		 * ptl lock held. So here a barrier will do.
 		 */
 		barrier();
-		if (pte_none(vmf->orig_pte)) {
+		if (pte_none(vmf->orig_pte)) 
+		{
 			pte_unmap(vmf->pte);
 			vmf->pte = NULL;
 		}
 	}
 
-	if (!vmf->pte) {
+	if (!vmf->pte) 
+	{
 		if (vma_is_anonymous(vmf->vma))
+		{
+			/*处理匿名页*/
 			return do_anonymous_page(vmf);
+		}
 		else
+		{	
+			/*
+			 * 非匿名页,按需分配页
+			 */
 			return do_fault(vmf);
+		}
 	}
 
 	if (!pte_present(vmf->orig_pte))
@@ -3599,50 +3624,77 @@ unlock:
 
 /*
  * By the time we get here, we already hold the mm semaphore
+ * 当我们到达这里时，我们已经拥有了mm信号量
  *
  * The mmap_sem may have been released depending on flags and our
  * return value.  See filemap_fault() and __lock_page_or_retry().
+   根据标志和我们的返回值，mmap_sem可能已被释放。 
+   请参阅filemap_fault（）和__lock_page_or_retry（）。
  */
 static int __handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 		unsigned int flags)
 {
-	struct vm_fault vmf = {
+	struct vm_fault vmf =
+	{
 		.vma = vma,
 		.address = address & PAGE_MASK,
 		.flags = flags,
 		.pgoff = linear_page_index(vma, address),
 		.gfp_mask = __get_fault_gfp_mask(vma),
 	};
+
 	struct mm_struct *mm = vma->vm_mm;
 	pgd_t *pgd;
 	pud_t *pud;
 
+	/*
+		pgd_offset和pud_alloc检查映射address的页中间目录和页表是否存在
+	*/
+	//根据当前的虚拟地址和当前进程的mm_struct获取pgd项
 	pgd = pgd_offset(mm, address);
+	/*
+		在两级或三级分页系统下，这个函数什么也不做：它仅仅返回页全局目录项pgd的线性地址。
+		返回页中间目录
+	*/
 	pud = pud_alloc(mm, pgd, address);
 	if (!pud)
 		return VM_FAULT_OOM;
+	/*
+		定义这个函数以使普通三级分页系统可以为线性地址 addr 分配一个新的页中间目录。
+		如果 PAE 未被激活，这个函数只是返回输入参数 pud 的值，也就是说，返回页全局目录中目录项的地址。
+		如果 PAE 被激活，该函数返回线性地址 addr 对应的页中间目录项的线性地址。参数 mm 被忽略。
+	*/
 	vmf.pmd = pmd_alloc(mm, pud, address);
 	if (!vmf.pmd)
 		return VM_FAULT_OOM;
-	if (pmd_none(*vmf.pmd) && transparent_hugepage_enabled(vma)) {
+	if (pmd_none(*vmf.pmd) && transparent_hugepage_enabled(vma)) 
+	{
 		int ret = create_huge_pmd(&vmf);
 		if (!(ret & VM_FAULT_FALLBACK))
 			return ret;
-	} else {
+	}
+	else 
+	{
 		pmd_t orig_pmd = *vmf.pmd;
 		int ret;
 
 		barrier();
-		if (pmd_trans_huge(orig_pmd) || pmd_devmap(orig_pmd)) {
+		if (pmd_trans_huge(orig_pmd) || pmd_devmap(orig_pmd)) 
+		{
 			if (pmd_protnone(orig_pmd) && vma_is_accessible(vma))
+			{
 				return do_huge_pmd_numa_page(&vmf, orig_pmd);
+			}
 
 			if ((vmf.flags & FAULT_FLAG_WRITE) &&
-					!pmd_write(orig_pmd)) {
+					!pmd_write(orig_pmd)) 
+			{
 				ret = wp_huge_pmd(&vmf, orig_pmd);
 				if (!(ret & VM_FAULT_FALLBACK))
 					return ret;
-			} else {
+			}
+			else
+			{
 				huge_pmd_set_accessed(&vmf, orig_pmd);
 				return 0;
 			}
@@ -3654,50 +3706,78 @@ static int __handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 
 /*
  * By the time we get here, we already hold the mm semaphore
+ * 当我们到达这里时，我们已经拥有了mm信号量
  *
  * The mmap_sem may have been released depending on flags and our
  * return value.  See filemap_fault() and __lock_page_or_retry().
+ * 根据标志和我们的返回值，mmap_sem可能已被释放。 
+ * 请参阅filemap_fault（）和__lock_page_or_retry（）。
  */
 int handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 		unsigned int flags)
 {
 	int ret;
 
+	/*
+		设置当前进程的状态
+		TASK_RUNNING：进程正在运行
+	*/
 	__set_current_state(TASK_RUNNING);
 
+	/*
+	*统计PAGE FAULT的次数
+	*/
 	count_vm_event(PGFAULT);
+	
 	mem_cgroup_count_vm_event(vma->vm_mm, PGFAULT);
 
-	/* do counter updates before entering really critical section. */
+	/*
+	* do counter updates before entering really critical section. 
+	* 在进入真正的关键部分之前进行计数器的更新
+	*/
 	check_sync_rss_stat(current);
 
 	/*
 	 * Enable the memcg OOM handling for faults triggered in user
 	 * space.  Kernel faults are handled more gracefully.
+	 * 对用户空间中触发的故障启用memcg OOM处理。 内核故障处理更优雅。
 	 */
 	if (flags & FAULT_FLAG_USER)
+	{
 		mem_cgroup_oom_enable();
+	}
 
 	if (!arch_vma_access_permitted(vma, flags & FAULT_FLAG_WRITE,
 					    flags & FAULT_FLAG_INSTRUCTION,
 					    flags & FAULT_FLAG_REMOTE))
+	{
 		return VM_FAULT_SIGSEGV;
+	}
 
+	/*
+	* 如果是大页的情况
+	*/
 	if (unlikely(is_vm_hugetlb_page(vma)))
 		ret = hugetlb_fault(vma->vm_mm, vma, address, flags);
 	else
+    {
 		ret = __handle_mm_fault(vma, address, flags);
+	}
 
-	if (flags & FAULT_FLAG_USER) {
+	if (flags & FAULT_FLAG_USER)
+	{
 		mem_cgroup_oom_disable();
-                /*
-                 * The task may have entered a memcg OOM situation but
-                 * if the allocation error was handled gracefully (no
-                 * VM_FAULT_OOM), there is no need to kill anything.
-                 * Just clean up the OOM state peacefully.
-                 */
-                if (task_in_memcg_oom(current) && !(ret & VM_FAULT_OOM))
-                        mem_cgroup_oom_synchronize(false);
+        /*
+         * The task may have entered a memcg OOM situation but
+         * if the allocation error was handled gracefully (no
+         * VM_FAULT_OOM), there is no need to kill anything.
+         * Just clean up the OOM state peacefully.
+         *
+         * 该任务可能已进入memcg OOM状态，但如果分配错误得到正常处理
+         *（无VM_FAULT_OOM），则无需任何操作。只需清理OOM状态即可。
+         */
+        if (task_in_memcg_oom(current) && !(ret & VM_FAULT_OOM))
+                mem_cgroup_oom_synchronize(false);
 	}
 
 	/*
@@ -3708,6 +3788,10 @@ int handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 	 * the corrupted data will not be visible anywhere while kthread
 	 * will outlive the oom victim and potentially propagate the date
 	 * further.
+	 *
+	 * 这个mm已经被oom收割者收获了，所以重新默认是不可信的。 
+	 * 匿名重新默认会丢失数据，并给出零页面，例如 对于use_mm（）来说，这是特别的问题，
+	 * 因为常规任务将会死亡，并且损坏的数据将不会在任何地方可见，而kthread将超过oom受害者并可能进一步传播日期。
 	 */
 	if (unlikely((current->flags & PF_KTHREAD) && !(ret & VM_FAULT_ERROR)
 				&& test_bit(MMF_UNSTABLE, &vma->vm_mm->flags)))
@@ -3715,6 +3799,7 @@ int handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 
 	return ret;
 }
+		
 EXPORT_SYMBOL_GPL(handle_mm_fault);
 
 #ifndef __PAGETABLE_PUD_FOLDED

@@ -285,13 +285,20 @@ extern pgprot_t protection_map[16];
  * vm_fault is filled by the the pagefault handler and passed to the vma's
  * ->fault function. The vma's ->fault is responsible for returning a bitmask
  * of VM_FAULT_xxx flags that give details about how the fault was handled.
+   vm_fault由pagefault处理程序填充并传递给vma的 - >错误函数。
+   vma's - > fault负责返回VM_FAULT_xxx标志的位掩码，
+   该标志给出了有关如何处理故障的详细信息。
  *
  * MM layer fills up gfp_mask for page allocations but fault handler might
  * alter it if its implementation requires a different allocation context.
+ * MM层填充页面分配的gfp_mask，但如果错误处理程序的实现需要不同的分配上下文
+ * ，错误处理程序可能会改变它。
  *
  * pgoff should be used in favour of virtual_address, if possible.
+ * 如果可能，应该使用pgoff来支持virtual_address。
  */
-struct vm_fault {
+struct vm_fault 
+{
 	struct vm_area_struct *vma;	/* Target VMA */
 	unsigned int flags;		/* FAULT_FLAG_xxx flags */
 	gfp_t gfp_mask;			/* gfp mask to be used for allocations */
@@ -1240,6 +1247,7 @@ extern int fixup_user_fault(struct task_struct *tsk, struct mm_struct *mm,
 			    unsigned long address, unsigned int fault_flags,
 			    bool *unlocked);
 #else
+
 static inline int handle_mm_fault(struct vm_area_struct *vma,
 		unsigned long address, unsigned int flags)
 {
@@ -1247,6 +1255,7 @@ static inline int handle_mm_fault(struct vm_area_struct *vma,
 	BUG();
 	return VM_FAULT_SIGBUS;
 }
+
 static inline int fixup_user_fault(struct task_struct *tsk,
 		struct mm_struct *mm, unsigned long address,
 		unsigned int fault_flags, bool *unlocked)

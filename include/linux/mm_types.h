@@ -416,23 +416,45 @@ struct mm_rss_stat {
 };
 
 struct kioctx_table;
-struct mm_struct {
+
+
+/* 
+	内存描述符，每个进程都会有一个，除了内核线程(使用被调度出去的进程的mm_struct)和
+	轻量级进程(使用父进程的mm_struct)
+
+	所有的内存描述符存放在一个双向链表中，链表中第一个元素是init_mm，它是初始化阶段进程0的内存描述符
+*/
+struct mm_struct
+{
 	/*
-	在地址空间中，mmap为地址空间的内存区域（用vm_area_struct结构来表示）链表，
-	mm_rb用红黑树来存储，链表表示起来更加方便，红黑树表示起来更加方便查找。
-	区别是，当虚拟区较少的时候，这个时候采用单链表，由mmap指向这个链表，当虚拟区多时此时采用红黑树的结构，
-	由mm_rb指向这棵红黑树。这样就可以在大量数据的时候效率更高。
+		在地址空间中，mmap为地址空间的内存区域（用vm_area_struct结构来表示）链表，
+		mm_rb用红黑树来存储，链表表示起来更加方便，红黑树表示起来更加方便查找。
+		区别是，当虚拟区较少的时候，这个时候采用单链表，由mmap指向这个链表，当虚拟区多时此时采用红黑树的结构，
+		由mm_rb指向这棵红黑树。这样就可以在大量数据的时候效率更高。
 	*/
-	//指向线性区对象的链表头
+	/*
+		指向线性区对象的链表头,链表是经过排序的，按线性地址升序排列，
+		里面映射了匿名映射线性区和文件映射线性区
+	*/
+	
 	struct vm_area_struct *mmap;		/* list of VMAs */
-	//指向线性区对象的红黑树
+	/*
+	* 指向线性区对象的红黑树的根
+	*/
 	struct rb_root mm_rb;
 	u32 vmacache_seqnum;                   /* per-thread vmacache */
 #ifdef CONFIG_MMU
+	/*  在进程地址空间中找一个可以使用的线性地址空间，查找一个空闲的地址空间
+	 *  len：指定区间的长度
+	 *  返回新区间的起始地址
+     */
 	unsigned long (*get_unmapped_area) (struct file *filp,
 				unsigned long addr, unsigned long len,
 				unsigned long pgoff, unsigned long flags);
 #endif
+	/* 标识第一个分配的匿名线性区或者文件内存映射的线性地址
+	 *
+     */
 	unsigned long mmap_base;		/* base of mmap area */
 	unsigned long mmap_legacy_base;         /* base of mmap area in bottom-up allocations */
 	unsigned long task_size;		/* size of task vm space */

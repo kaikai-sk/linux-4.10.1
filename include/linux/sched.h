@@ -204,16 +204,26 @@ extern void proc_sched_set_task(struct task_struct *p);
  * modifying one set can't modify the other one by
  * mistake.
  */
+//表示进程要么正在执行，要么正要准备执行。
 #define TASK_RUNNING		0
+//表示进程被阻塞（睡眠），直到某个条件变为真。条件一旦达成，进程的状态就被设置为TASK_RUNNING。
 #define TASK_INTERRUPTIBLE	1
+//TASK_UNINTERRUPTIBLE的意义与TASK_INTERRUPTIBLE类似，除了不能通过接受一个信号来唤醒以外。
 #define TASK_UNINTERRUPTIBLE	2
+//__TASK_STOPPED表示进程被停止执行
 #define __TASK_STOPPED		4
+//__TASK_TRACED表示进程被debugger等进程监视。
 #define __TASK_TRACED		8
 /* in tsk->exit_state */
 #define EXIT_DEAD		16
+/*
+	EXIT_ZOMBIE表示进程的执行被终止，但是其父进程还没有使用wait()等系统调用来获知它的终止信息。
+*/
 #define EXIT_ZOMBIE		32
 #define EXIT_TRACE		(EXIT_ZOMBIE | EXIT_DEAD)
-/* in tsk->state again */
+/* in tsk->state again 
+EXIT_DEAD表示进程的最终状态。
+*/
 #define TASK_DEAD		64
 #define TASK_WAKEKILL		128
 #define TASK_WAKING		256
@@ -1508,24 +1518,32 @@ struct tlbflush_unmap_batch {
 	bool writable;
 };
 
-struct task_struct {
+struct task_struct 
+{
 #ifdef CONFIG_THREAD_INFO_IN_TASK
 	/*
 	 * For reasons of header soup (see current_thread_info()), this
 	 * must be the first element of task_struct.
+	 *
+	 * 由于header soup的原因（请参阅current_thread_info（）），
+	 * 这必须是task_struct的第一个元素。
 	 */
 	struct thread_info thread_info;
 #endif
 	//进程运行时状态：-1代表不可运行 0代表可运行 >0代表已停止
 	volatile long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
+	/*
+		进程通过alloc_thread_info函数分配它的内核栈，
+		通过free_thread_info函数释放所分配的内核栈。 
+	*/
 	void *stack;
 	atomic_t usage;
 	/*
-	flags是进程当前的状态标志，具体如下：
-	0x00000002表示进程正在被创建；
-	0x00000004表示进程正准备退出；
-	0x00000040 表示此进程被fork出，但是并没有执行exec；
-	0x00000400表示此进程由于其他进程发送相关信号而被杀死 。
+		flags是进程当前的状态标志，具体如下：
+		0x00000002表示进程正在被创建；
+		0x00000004表示进程正准备退出；
+		0x00000040 表示此进程被fork出，但是并没有执行exec；
+		0x00000400表示此进程由于其他进程发送相关信号而被杀死 。
 	*/
 	unsigned int flags;	/* per process flags, defined below */
 	unsigned int ptrace;
@@ -1592,6 +1610,7 @@ struct task_struct {
 #endif
 	//mm mm_struct结构体，该结构记录了进程内存的使用情况
 	struct mm_struct *mm, *active_mm;
+
 	/* per-thread vma caching */
 	u32 vmacache_seqnum;
 	struct vm_area_struct *vmacache[VMACACHE_SIZE];
@@ -1635,8 +1654,16 @@ struct task_struct {
 	struct restart_block restart_block;
 
 	//进程id
+	/*
+		在CONFIG_BASE_SMALL配置为0的情况下，PID的取值范围是0到32767，即系统中的进程数最大为32768个。 
+	*/
 	pid_t pid;
 	//进程组号
+	/*
+		在Linux系统中，一个线程组中的所有线程使用和该线程组的领头线程（该组中的第一个轻量级进程）相同的PID，
+		并被存放在tgid成员中。只有线程组的领头线程的pid成员才会被设置为与tgid相同的值。
+		注意，getpid()系统调用返回的是当前进程的tgid值而不是pid值。
+	*/
 	pid_t tgid;
 
 #ifdef CONFIG_CC_STACKPROTECTOR
@@ -1648,9 +1675,15 @@ struct task_struct {
 	 * older sibling, respectively.  (p->father can be replaced with
 	 * p->real_parent->pid)
 	 */
-	//该进程的亲生父亲，不管其是否被“寄养”
+	/* 该进程的亲生父亲，不管其是否被“寄养”
+	*   real_parent指向其父进程，如果创建它的父进程不再存在，则指向PID为1的init进程。
+	*/
 	struct task_struct __rcu *real_parent; /* real parent process */
-	//parent是该进程现在的父进程，可能是“继父”
+	/*
+	   parent是该进程现在的父进程，可能是“继父”
+	   parent指向其父进程，当它终止时，必须向它的父进程发送信号。它的值通常与real_parent相同。
+	*/
+	
 	struct task_struct __rcu *parent; /* recipient of SIGCHLD, wait4() reports */
 	/*
 	 * children/sibling forms the list of my natural children
@@ -1668,8 +1701,13 @@ struct task_struct {
 	 * ptraced is the list of tasks this task is using ptrace on.
 	 * This includes both natural children and PTRACE_ATTACH targets.
 	 * p->ptrace_entry is p's link on the p->parent->ptraced list.
+	 *
+	 * ptraced是这个任务使用ptrace的任务列表。这包括自然的孩子和PTRACE_ATTACH目标。
+	 * p-> ptrace_entry是p-> parent-> ptraced列表上的p链接。
 	 */
 	struct list_head ptraced;
+
+	
 	struct list_head ptrace_entry;
 
 	/* PID/PID hash table linkage. */
