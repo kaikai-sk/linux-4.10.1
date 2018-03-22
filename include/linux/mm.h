@@ -2033,12 +2033,14 @@ extern unsigned long do_mmap(struct file *file, unsigned long addr,
 extern int do_munmap(struct mm_struct *, unsigned long, size_t);
 
 static inline unsigned long
+
 do_mmap_pgoff(struct file *file, unsigned long addr,
 	unsigned long len, unsigned long prot, unsigned long flags,
 	unsigned long pgoff, unsigned long *populate)
 {
 	return do_mmap(file, addr, len, prot, flags, 0, pgoff, populate);
 }
+
 
 #ifdef CONFIG_MMU
 extern int __mm_populate(unsigned long addr, unsigned long len,

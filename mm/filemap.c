@@ -2178,7 +2178,8 @@ static void do_sync_mmap_readahead(struct vm_area_struct *vma,
 	if (!ra->ra_pages)
 		return;
 
-	if (vma->vm_flags & VM_SEQ_READ) {
+	if (vma->vm_flags & VM_SEQ_READ) 
+	{
 		page_cache_sync_readahead(mapping, ra, file, offset,
 					  ra->ra_pages);
 		return;
@@ -2186,14 +2187,18 @@ static void do_sync_mmap_readahead(struct vm_area_struct *vma,
 
 	/* Avoid banging the cache line if not needed */
 	if (ra->mmap_miss < MMAP_LOTSAMISS * 10)
+	{
 		ra->mmap_miss++;
+	}
 
 	/*
 	 * Do we miss much more than hit in this file? If so,
 	 * stop bothering with read-ahead. It will only hurt.
 	 */
 	if (ra->mmap_miss > MMAP_LOTSAMISS)
+	{
 		return;
+	}
 
 	/*
 	 * mmap read-around
@@ -2250,6 +2255,13 @@ static void do_async_mmap_readahead(struct vm_area_struct *vma,
  *
  * We never return with VM_FAULT_RETRY and a bit from VM_FAULT_ERROR set.
  */
+/*
+* 在应用程序访问映射区域但对应数据不在物理内存时
+* 调用。filemap_fault()借助于潜在文件系统的底层例程
+* 取得所需数据，并读取到物理内存，这些对应用程序
+* 是透明的。换句话说，映射数据不是在建立映射时
+* 立即读入内存，只有实际需要相应数据时才进行读取。
+*/
 int filemap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
 	int error;
@@ -2272,21 +2284,33 @@ int filemap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 
 	/*
 	 * Do we have something in the page cache already?
+	 * 查看要访问的page是否已经在page cache当中了
 	 */
 	page = find_get_page(mapping, offset);
-	if (likely(page) && !(vmf->flags & FAULT_FLAG_TRIED)) {
+
+	/*找到了页并且不需要第二次尝试
+	*/
+	if (likely(page) && !(vmf->flags & FAULT_FLAG_TRIED))
+	{
 		/*
 		 * We found the page, so try async readahead before
 		 * waiting for the lock.
+		 * 我们找到了这个页，所以在等待锁之前尝试异步预读
 		 */
 		do_async_mmap_readahead(vma, ra, file, page, offset);
-	} else if (!page) {
+	}
+	else if (!page) 
+	{
 		/* No page in the page cache at all */
+		/* 同步预读 */
 		do_sync_mmap_readahead(vma, ra, file, offset);
 		count_vm_event(PGMAJFAULT);
 		mem_cgroup_count_vm_event(vma->vm_mm, PGMAJFAULT);
 		ret = VM_FAULT_MAJOR;
 retry_find:
+		/**
+		 * 调用find_get_page在页高速缓存内寻找由address_space对象和文件偏移量标识的页。
+		 */
 		page = find_get_page(mapping, offset);
 		if (!page)
 			goto no_cached_page;
@@ -2308,6 +2332,9 @@ retry_find:
 	/*
 	 * We have a locked page in the page cache, now we need to check
 	 * that it's up-to-date. If not, it is going to be due to an error.
+	 */
+	 /**
+	 * 页不是最新的。
 	 */
 	if (unlikely(!PageUptodate(page)))
 		goto page_not_uptodate;
@@ -2331,6 +2358,11 @@ no_cached_page:
 	 * We're only likely to ever get here if MADV_RANDOM is in
 	 * effect.
 	 */
+	/**
+	 * 在页高速缓存中没有找到页，则调用page_cache_read。
+	 * 该函数检查请求页是否在页高速缓存中，如果不在，则分配一个新页框，把它追加到页调整缓存。
+	 * 执行mapping->a_ops->readpage方法，安排一个IO操作从磁盘读入该页内容。
+	 */
 	error = page_cache_read(file, offset, vmf->gfp_mask);
 
 	/*
@@ -2350,6 +2382,9 @@ no_cached_page:
 		return VM_FAULT_OOM;
 	return VM_FAULT_SIGBUS;
 
+/**
+ * 页不是最新的。
+ */
 page_not_uptodate:
 	/*
 	 * Umm, take care of errors if the page isn't up-to-date.
@@ -2358,6 +2393,7 @@ page_not_uptodate:
 	 * and we need to check for errors.
 	 */
 	ClearPageError(page);
+	/* 读取页面内容到内存中 */
 	error = mapping->a_ops->readpage(file, page);
 	if (!error) {
 		wait_on_page_locked(page);
@@ -2365,7 +2401,7 @@ page_not_uptodate:
 			error = -EIO;
 	}
 	put_page(page);
-
+	/* 重新查找页面 */
 	if (!error || error == AOP_TRUNCATED_PAGE)
 		goto retry_find;
 
@@ -2486,7 +2522,8 @@ out:
 }
 EXPORT_SYMBOL(filemap_page_mkwrite);
 
-const struct vm_operations_struct generic_file_vm_ops = {
+const struct vm_operations_struct generic_file_vm_ops = 
+{
 	.fault		= filemap_fault,
 	.map_pages	= filemap_map_pages,
 	.page_mkwrite	= filemap_page_mkwrite,
@@ -2514,6 +2551,7 @@ int generic_file_readonly_mmap(struct file *file, struct vm_area_struct *vma)
 		return -EINVAL;
 	return generic_file_mmap(file, vma);
 }
+
 #else
 int generic_file_mmap(struct file * file, struct vm_area_struct * vma)
 {

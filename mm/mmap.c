@@ -1311,6 +1311,9 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 
 	*populate = 0;
 
+	/*
+		参数有效性检查
+	*/
 	if (!len)
 		return -EINVAL;
 
@@ -1320,34 +1323,57 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	 * (the exception is when the underlying filesystem is noexec
 	 *  mounted, in which case we dont add PROT_EXEC.)
 	 */
+	 /*有读取权限，同时该体系结构中，读即意味着执行*/
 	if ((prot & PROT_READ) && (current->personality & READ_IMPLIES_EXEC))
+	{
+		/*文件在mount的时候，没有禁止执行
+		*/
 		if (!(file && path_noexec(&file->f_path)))
+		{
+			//添加可执行标志
 			prot |= PROT_EXEC;
+		}
+	}
 
 	if (!(flags & MAP_FIXED))
 		addr = round_hint_to_min(addr);
 
-	/* Careful about overflows.. */
+	/* Careful about overflows.. 
+		检查长度是否合法
+	*/
 	len = PAGE_ALIGN(len);
 	if (!len)
 		return -ENOMEM;
 
-	/* offset overflow? */
+	/* offset overflow? 
+	   是否越界了
+	*/
 	if ((pgoff + (len >> PAGE_SHIFT)) < pgoff)
 		return -EOVERFLOW;
 
-	/* Too many mappings? */
+	/* Too many mappings? 
+		进程映射了过多的线性区
+	*/
 	if (mm->map_count > sysctl_max_map_count)
 		return -ENOMEM;
 
 	/* Obtain the address to map to. we verify (or select) it and ensure
 	 * that it represents a valid section of the address space.
+
+	 	在虚拟地址空间中找到一个适当的区域用于映射。应用程序可以对映射指定固定地址
+	 	建议一个地址或者由内核选择地址
+
+	 	get_unmaped_area获得新线性区的线性地址空间。这个函数可能会调用文件对象的
+	 	get_unmaped_area方法
 	 */
 	addr = get_unmapped_area(file, addr, len, pgoff, flags);
+	/*查找一个可用的虚拟地址空间
+	*/
 	if (offset_in_page(addr))
 		return addr;
 
-	if (prot == PROT_EXEC) {
+	if (prot == PROT_EXEC) 
+	{
 		pkey = execute_only_pkey(mm);
 		if (pkey < 0)
 			pkey = 0;
@@ -1356,10 +1382,28 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	/* Do simple checking here so the lower-level routines won't have
 	 * to. we assume access permissions have been handled by the open
 	 * of the memory object, so we don't do any here.
+
+		将属性地址转换为VM_*****标志，易于后续处理。def_flags主要包含VM_LOCKED标志。
+		该标志表示禁止相应的页换出
+
+		calc_vm_prot_bits()和和calc_vm_flag_bits（）将系统调用中指定的标志和访问权限常数
+		合并到一个共同的标志集中，在后续的操作中比较容易处理（MAP_和PROT_标志转换为前缀VM_的标志）。
+		内核从当前运行进程的mm_struct实例获得def——flags之后，又将其包含到标志集中。def_flags的值为
+		0或者VM_LOCK。前者不会改变结果标志集，而VM_LOCK意味着随后映射的页无法换出。为设置def_flags的值
+		进程必须发出mlockall（）系统调用。使用上述机制防止所有未来的映射被换出，即使在创建时
+		没有显式指定VM_LOCK标志，也是如此。
+
+		通过prot和flag计算新线性区描述符的标志。
+	 	mm->def_flags是线性区的默认标志。它只能由mlockall系统调用修改。
+	 	这个调用可以设置VM_LOCKED标志。由此锁住以后申请的RAM中的所有页。
 	 */
 	vm_flags |= calc_vm_prot_bits(prot, pkey) | calc_vm_flag_bits(flags) |
 			mm->def_flags | VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC;
 
+	/**
+	 * flag参数指定新线性区地址区间的页必须被锁在RAM中，但不允许进程
+	 * 创建上锁的线性区检查用户是否真的有权限锁定页面
+	 */
 	if (flags & MAP_LOCKED)
 		if (!can_do_mlock())
 			return -EPERM;
@@ -1370,8 +1414,13 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	if (file) {
 		struct inode *inode = file_inode(file);
 
-		switch (flags & MAP_TYPE) {
+		switch (flags & MAP_TYPE) 
+		{
+		//共享映射
 		case MAP_SHARED:
+			/*如果请求一个共享可写的内存映射，就检查文件是否为写入而打开的
+			*/
+			//文件只读，不允许写
 			if ((prot&PROT_WRITE) && !(file->f_mode&FMODE_WRITE))
 				return -EACCES;
 
@@ -1379,12 +1428,14 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 			 * Make sure we don't allow writing to an append-only
 			 * file..
 			 */
+			//如果节点仅仅允许追加写，但是文件以写方式打开，则返回错误
 			if (IS_APPEND(inode) && (file->f_mode & FMODE_WRITE))
 				return -EACCES;
 
 			/*
 			 * Make sure there are no mandatory locks on the file.
 			 */
+			//如果请求一个共享内存映射，就检查文件上没有强制锁
 			if (locks_verify_locked(file))
 				return -EAGAIN;
 
@@ -1393,15 +1444,25 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 				vm_flags &= ~(VM_MAYWRITE | VM_SHARED);
 
 			/* fall through */
+			//此处没有调用break，也就是说，即便是共享映射，也要进行下面的映射
 		case MAP_PRIVATE:
+			/**
+			* 不论是共享映射还是私有映射，都要检查文件的读权限
+			*/
+			//文件映射之后，必然允许读。但是文件没有读权限
 			if (!(file->f_mode & FMODE_READ))
 				return -EACCES;
-			if (path_noexec(&file->f_path)) {
+			/**
+				文件系统在挂载时不允许执行，但是mmap允许执行
+			*/
+			if (path_noexec(&file->f_path)) 
+			{
 				if (vm_flags & VM_EXEC)
 					return -EPERM;
 				vm_flags &= ~VM_MAYEXEC;
 			}
 
+			//文件没有提供映射的方法
 			if (!file->f_op->mmap)
 				return -ENODEV;
 			if (vm_flags & (VM_GROWSDOWN|VM_GROWSUP))
@@ -1411,7 +1472,10 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 		default:
 			return -EINVAL;
 		}
-	} else {
+	} 
+	//匿名映射
+	else 
+	{
 		switch (flags & MAP_TYPE) {
 		case MAP_SHARED:
 			if (vm_flags & (VM_GROWSDOWN|VM_GROWSUP))

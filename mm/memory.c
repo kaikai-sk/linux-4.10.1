@@ -3538,6 +3538,9 @@ static int handle_pte_fault(struct vm_fault *vmf)
 		 * want to allocate huge page, and if we expose page table
 		 * for an instant, it will be difficult to retract from
 		 * concurrent faults and from rmap lookups.
+
+		 * 将__pte_alloc（）留到以后：因为vm_ops-> fault可能需要分配巨大的页面，
+		 * 并且如果我们在一瞬间公开页表，将难以从并发错误和rmap查找中收回。
 		 */
 		vmf->pte = NULL;
 	}
@@ -3551,6 +3554,9 @@ static int handle_pte_fault(struct vm_fault *vmf)
 		 * pmd from under us anymore at this point because we hold the
 		 * mmap_sem read mode and khugepaged takes it in write mode.
 		 * So now it's safe to run pte_offset_map().
+
+		 * 一个普通的pmd已经建立，并且它不能在这个时候变成一个巨大的pmd，因为我们保存了mmap_sem读取模式，
+		 * 并且khugepaged将它带入了写入模式。 所以现在运行pte_offset_map（）是安全的。
 		 */
 		vmf->pte = pte_offset_map(vmf->pmd, vmf->address);
 		vmf->orig_pte = *vmf->pte;
@@ -3562,6 +3568,10 @@ static int handle_pte_fault(struct vm_fault *vmf)
 		 * atomic accesses.  The code below just needs a consistent
 		 * view for the ifs and we later double check anyway with the
 		 * ptl lock held. So here a barrier will do.
+
+		 * 某些体系结构的字节数可能大于字词大小，例如，ppc44x-defconfig的CONFIG_PTE_64BIT = y
+		 * 和CONFIG_32BIT = y，因此READ_ONCE或ACCESS_ONCE不能保证原子访问。 
+		 * 下面的代码只需要一个一致的ifs视图，然后我们再次检查ptl锁。 所以这里有障碍。
 		 */
 		barrier();
 		if (pte_none(vmf->orig_pte)) 
@@ -3605,9 +3615,12 @@ static int handle_pte_fault(struct vm_fault *vmf)
 	}
 	entry = pte_mkyoung(entry);
 	if (ptep_set_access_flags(vmf->vma, vmf->address, vmf->pte, entry,
-				vmf->flags & FAULT_FLAG_WRITE)) {
+				vmf->flags & FAULT_FLAG_WRITE)) 
+	{
 		update_mmu_cache(vmf->vma, vmf->address, vmf->pte);
-	} else {
+	}
+	else 
+	{
 		/*
 		 * This is needed only for protection faults but the arch code
 		 * is not yet telling us if this is a protection fault or not.
