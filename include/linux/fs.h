@@ -1425,12 +1425,16 @@ struct super_block {
 	/*
 	 * Filesystem subtype.  If non-empty the filesystem type field
 	 * in /proc/mounts will be "type.subtype"
+
+	 *子类型名称
 	 */
 	char *s_subtype;
 
 	/*
 	 * Saved mount options for lazy filesystems using
 	 * generic_show_options()
+
+	 * 已存安装选项
 	 */
 	char __rcu *s_options;
 	const struct dentry_operations *s_d_op; /* default d_op for dentries */
@@ -1774,6 +1778,13 @@ struct inode_operations
 	//查找一个索引节点所在的目录
 	struct dentry * (*lookup) (struct inode *,struct dentry *, unsigned int);
 	const char * (*get_link) (struct dentry *, struct inode *, struct delayed_call *);
+	/*
+		    该函数用来检查给定的inode所代表的文件是否允许特定的访问模式。
+		如果允许特定的访问模式，返回零，否则返回负值的错误码
+			多数文件系统都将此区域设置为NULL，使用VFS提供的方法进行检查。这种检查操作仅仅是比较索引节点对象中
+		的访问模式位是否和给定的mask一致
+			比较复杂的系统（比如支持访问控制链（ACLS）的文件系统），需要使用特殊的permission（）方法
+	*/
 	int (*permission) (struct inode *, int);
 	struct posix_acl * (*get_acl)(struct inode *, int);
 	/*
@@ -1806,8 +1817,18 @@ struct inode_operations
 	*/
 	int (*rename) (struct inode * old_dir, struct dentry * old_dentry,
 			struct inode * new_dir, struct dentry * new_dentry, unsigned int);
+	/*
+		该函数被notify_change调用，在修改索引节点后，通知发生了“改变事件”
+	*/
 	int (*setattr) (struct dentry *, struct iattr *);
+	/*
+		在通知索引节点需要从磁盘中更新时，VFS会调用该函数
+		扩展属性允许key/value这样的一对值与文件相关联
+	*/
 	int (*getattr) (struct vfsmount *mnt, struct dentry *, struct kstat *);
+	/*
+		该函数将特定文件的属性列表拷贝到一个缓冲列表中
+	*/
 	ssize_t (*listxattr) (struct dentry *, char *, size_t);
 	int (*fiemap)(struct inode *, struct fiemap_extent_info *, u64 start,
 		      u64 len);

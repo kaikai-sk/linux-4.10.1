@@ -3,11 +3,13 @@
 
 /**
  * test_and_set_bit_lock - Set a bit and return its old value, for lock
- * @nr: Bit to set
- * @addr: Address to count from
+ *                         设置一个bit并且返回它的旧值，为了锁
+ * @nr: Bit to set                要设置的比特
+ * @addr: Address to count from   要计数的地址
  *
  * This operation is atomic and provides acquire barrier semantics.
  * It can be used to implement bit locks.
+ * 这个操作是原子操作，并提供获取屏障语义。它可以用来实现位锁。
  */
 #define test_and_set_bit_lock(nr, addr)	test_and_set_bit(nr, addr)
 

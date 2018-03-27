@@ -440,6 +440,11 @@ extern void unlock_page(struct page *page);
 
 static inline int trylock_page(struct page *page)
 {
+	/*可以使用PageCompound函数来检测一个页是否是复合页，另外函数PageHead
+     和函数PageTail用来检测一个页是否是页头或者页尾。在每个尾页的page
+     结构体中都包含一个指向头页的指针 - first_page，可以使用compound_head
+     函数获得。
+	*/
 	page = compound_head(page);
 	return (likely(!test_and_set_bit_lock(PG_locked, &page->flags)));
 }
@@ -470,9 +475,11 @@ static inline int lock_page_killable(struct page *page)
 /*
  * lock_page_or_retry - Lock the page, unless this would block and the
  * caller indicated that it can handle a retry.
+ * lock_page_or_retry - 锁定页面，除非这会阻止并且调用者指示它可以处理重试。
  *
  * Return value and mmap_sem implications depend on flags; see
  * __lock_page_or_retry().
+ * 返回值和mmap_sem含义取决于标志; 请参阅__lock_page_or_retry（）。
  */
 static inline int lock_page_or_retry(struct page *page, struct mm_struct *mm,
 				     unsigned int flags)

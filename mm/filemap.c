@@ -1050,7 +1050,8 @@ EXPORT_SYMBOL_GPL(__lock_page_killable);
 int __lock_page_or_retry(struct page *page, struct mm_struct *mm,
 			 unsigned int flags)
 {
-	if (flags & FAULT_FLAG_ALLOW_RETRY) {
+	if (flags & FAULT_FLAG_ALLOW_RETRY)
+	{
 		/*
 		 * CAUTION! In this case, mmap_sem is not released
 		 * even though return 0.
@@ -1064,16 +1065,21 @@ int __lock_page_or_retry(struct page *page, struct mm_struct *mm,
 		else
 			wait_on_page_locked(page);
 		return 0;
-	} else {
-		if (flags & FAULT_FLAG_KILLABLE) {
+	}
+	else 
+	{
+		if (flags & FAULT_FLAG_KILLABLE) 
+		{
 			int ret;
 
 			ret = __lock_page_killable(page);
-			if (ret) {
+			if (ret) 
+			{
 				up_read(&mm->mmap_sem);
 				return 0;
 			}
-		} else
+		} 
+		else
 			__lock_page(page);
 		return 1;
 	}
@@ -2172,12 +2178,18 @@ static void do_sync_mmap_readahead(struct vm_area_struct *vma,
 {
 	struct address_space *mapping = file->f_mapping;
 
-	/* If we don't want any read-ahead, don't bother */
+	/* If we don't want any read-ahead, don't bother 
+		随机读就不需要预取了
+	*/
 	if (vma->vm_flags & VM_RAND_READ)
 		return;
+	/*最大预读窗口是0，表示停止预读
+	*/
 	if (!ra->ra_pages)
 		return;
 
+	/*顺序读的情况
+	*/
 	if (vma->vm_flags & VM_SEQ_READ) 
 	{
 		page_cache_sync_readahead(mapping, ra, file, offset,
@@ -2185,7 +2197,9 @@ static void do_sync_mmap_readahead(struct vm_area_struct *vma,
 		return;
 	}
 
-	/* Avoid banging the cache line if not needed */
+	/* Avoid banging the cache line if not needed 
+	   如果不需要，避免撞上缓存行
+	*/
 	if (ra->mmap_miss < MMAP_LOTSAMISS * 10)
 	{
 		ra->mmap_miss++;
@@ -2194,6 +2208,7 @@ static void do_sync_mmap_readahead(struct vm_area_struct *vma,
 	/*
 	 * Do we miss much more than hit in this file? If so,
 	 * stop bothering with read-ahead. It will only hurt.
+	 * 我们错过了比这个文件更多的命中吗？ 如果是这样，请停止预读。 它只会伤害。
 	 */
 	if (ra->mmap_miss > MMAP_LOTSAMISS)
 	{
@@ -2221,14 +2236,18 @@ static void do_async_mmap_readahead(struct vm_area_struct *vma,
 {
 	struct address_space *mapping = file->f_mapping;
 
-	/* If we don't want any read-ahead, don't bother */
+	/* If we don't want any read-ahead, don't bother 
+		判断为随机读，就不进行预读了
+	*/
 	if (vma->vm_flags & VM_RAND_READ)
 		return;
 	if (ra->mmap_miss > 0)
 		ra->mmap_miss--;
 	if (PageReadahead(page))
+	{
 		page_cache_async_readahead(mapping, ra, file,
 					   page, offset, ra->ra_pages);
+	}
 }
 
 /**
@@ -2316,13 +2335,17 @@ retry_find:
 			goto no_cached_page;
 	}
 
-	if (!lock_page_or_retry(page, vma->vm_mm, vmf->flags)) {
+	/*如果page没有被锁
+	*/
+	if (!lock_page_or_retry(page, vma->vm_mm, vmf->flags)) 
+	{
 		put_page(page);
 		return ret | VM_FAULT_RETRY;
 	}
 
 	/* Did it get truncated? */
-	if (unlikely(page->mapping != mapping)) {
+	if (unlikely(page->mapping != mapping)) 
+	{
 		unlock_page(page);
 		put_page(page);
 		goto retry_find;

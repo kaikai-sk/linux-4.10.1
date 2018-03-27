@@ -179,8 +179,12 @@ struct page
 						 * when destroying via RCU
 						 */
 		/* Tail pages of compound page */
-		struct {
-			unsigned long compound_head; /* If bit zero is set */
+		struct 
+		{
+			/* If bit zero is set 
+				如果bit 0 被设置
+			*/
+			unsigned long compound_head; 
 
 			/* First tail page only */
 #ifdef CONFIG_64BIT
@@ -197,6 +201,8 @@ struct page
 			unsigned short int compound_order;
 #endif
 		};
+
+
 
 #if defined(CONFIG_TRANSPARENT_HUGEPAGE) && USE_SPLIT_PMD_PTLOCKS
 		struct {

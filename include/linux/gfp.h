@@ -15,12 +15,22 @@ struct vm_area_struct;
  */
 
 /* Plain integer GFP bitmasks. Do not use this directly. */
+/*
+	从ZONE_DMA分配
+*/
 #define ___GFP_DMA		0x01u
+/*
+从ZONE_HIGHMEM或者从ZONE_NORMAL中分配
+*/
 #define ___GFP_HIGHMEM		0x02u
+/*
+	只在ZONE_DMA32分配
+*/
 #define ___GFP_DMA32		0x04u
 #define ___GFP_MOVABLE		0x08u
 #define ___GFP_RECLAIMABLE	0x10u
 //允许内核访问保留的页框池
+//分配器可以访问紧急事件缓冲池
 #define ___GFP_HIGH		0x20u
 //允许内核在低端内存页上执行I/O传输以释放页框
 #define ___GFP_IO		0x40u
@@ -252,17 +262,44 @@ struct vm_area_struct;
  *   version does not attempt reclaim/compaction at all and is by default used
  *   in page fault path, while the non-light is used by khugepaged.
  */
+
+//这个标志用在中断处理程序、下半部、持有自旋锁和其他不能睡眠的地方
 #define GFP_ATOMIC	(__GFP_HIGH|__GFP_ATOMIC|__GFP_KSWAPD_RECLAIM)
+/*
+	这是一种常规的分配方式，可能会阻塞。这个标志在睡眠安全时用在进程上下文代码中。
+	为了获得调用者所需的内存，内核会尽力而为。这个标志应当是首选标志。
+*/
 #define GFP_KERNEL	(__GFP_RECLAIM | __GFP_IO | __GFP_FS)
 #define GFP_KERNEL_ACCOUNT (GFP_KERNEL | __GFP_ACCOUNT)
+//与GFP_ATOMIC相似，不同之处在于，调用不会退给紧急内存池。这就增加了
+//内存分配失败的可能性
 #define GFP_NOWAIT	(__GFP_KSWAPD_RECLAIM)
+/*
+	这种分配可以阻塞，但是不会启动磁盘IO。这个标志在不能引发更多磁盘IO时能阻塞IO代码
+	，这可能是导致令人不愉快的递归
+*/
 #define GFP_NOIO	(__GFP_RECLAIM)
+/*
+	这种分配在必要时可能阻塞，也可能启用磁盘IO，但是不会启动文件系统操作。这个标志在你不能再启动
+	另一个文件系统的操作时，用在文件系统部分的代码中
+*/
 #define GFP_NOFS	(__GFP_RECLAIM | __GFP_IO)
 #define GFP_TEMPORARY	(__GFP_RECLAIM | __GFP_IO | __GFP_FS | \
 			 __GFP_RECLAIMABLE)
+/*
+	这是一种常规分配方式，可能会阻塞。这个标志用于为用户空间进程分配内存时
+*/
 #define GFP_USER	(__GFP_RECLAIM | __GFP_IO | __GFP_FS | __GFP_HARDWALL)
+/*
+	这是从ZONE_DMA进行分配。需要获取能供DMA使用的内存的设备驱动程序使用这个标志，
+	通常与其他标志组合在一起使用。
+*/
 #define GFP_DMA		__GFP_DMA
 #define GFP_DMA32	__GFP_DMA32
+/*
+	这是从ZONE_HIGHMEM进行分配，可能会阻塞。
+	这个标志用于为用户空间进程分配内存。
+*/
 #define GFP_HIGHUSER	(GFP_USER | __GFP_HIGHMEM)
 #define GFP_HIGHUSER_MOVABLE	(GFP_HIGHUSER | __GFP_MOVABLE)
 #define GFP_TRANSHUGE_LIGHT	((GFP_HIGHUSER_MOVABLE | __GFP_COMP | \

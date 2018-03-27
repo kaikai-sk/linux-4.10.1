@@ -458,6 +458,7 @@ out:
 	return error;
 }
 
+
 SYSCALL_DEFINE1(fchdir, unsigned int, fd)
 {
 	struct fd f = fdget_raw(fd);
@@ -482,6 +483,7 @@ out_putf:
 out:
 	return error;
 }
+
 
 SYSCALL_DEFINE1(chroot, const char __user *, filename)
 {
@@ -1147,10 +1149,13 @@ int filp_close(struct file *filp, fl_owner_t id)
 
 EXPORT_SYMBOL(filp_close);
 
+
 /*
  * Careful here! We test whether the file pointer is NULL before
  * releasing the fd. This ensures that one clone task can't release
  * an fd while another clone is opening it.
+ * 小心这里！ 我们在释放fd之前测试文件指针是否为NULL。 
+ * 这可确保一个克隆任务在另一个克隆打开时无法释放fd。
  */
 SYSCALL_DEFINE1(close, unsigned int, fd)
 {
@@ -1166,6 +1171,8 @@ SYSCALL_DEFINE1(close, unsigned int, fd)
 	return retval;
 }
 EXPORT_SYMBOL(sys_close);
+
+
 
 /*
  * This routine simulates a hangup on the tty, to arrange that users

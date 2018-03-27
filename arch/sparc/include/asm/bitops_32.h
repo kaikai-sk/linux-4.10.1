@@ -27,6 +27,9 @@ unsigned long ___change_bit(unsigned long *addr, unsigned long mask);
  * is in the highest of the four bytes and bit '31' is the high bit
  * within the first byte. Sparc is BIG-Endian. Unless noted otherwise
  * all bit-ops return 0 if bit was previously clear and != 0 otherwise.
+ *
+ * 在地址'addr'处以32位数量设置位'nr'，其中'0'位于四个字节中的最高位，'31'位是第一个字节内的高位。
+ * Sparc是BIG-Endian。 除非另有说明，否则如果以前清除了位，则所有位操作返回0，否则！= 0。
  */
 static inline int test_and_set_bit(unsigned long nr, volatile unsigned long *addr)
 {

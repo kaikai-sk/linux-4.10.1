@@ -648,6 +648,7 @@ int __close_fd(struct files_struct *files, unsigned fd)
 	__clear_close_on_exec(fd, fdt);
 	__put_unused_fd(files, fd);
 	spin_unlock(&files->file_lock);
+	
 	return filp_close(file, files);
 
 out_unlock:
