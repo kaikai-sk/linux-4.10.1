@@ -239,6 +239,7 @@ __do_page_fault(struct mm_struct *mm, unsigned long addr, unsigned int fsr,
 	    即：addr在vma这个区间中。  
 	*/
 	vma = find_vma(mm, addr);
+	//如果find_vma()找不到vma，说明addr地址还没有在进程地址空间中，返回VM_FAULT_BADMAP错误
 	fault = VM_FAULT_BADMAP;
 
 	/*
@@ -266,15 +267,20 @@ __do_page_fault(struct mm_struct *mm, unsigned long addr, unsigned int fsr,
 	 * 当然也有可能是其他原因，比如在read only的时候进行write了。  
 	 */
 good_area:
+	/*
+		判断vma是否具备可写或者是可执行等权限
+	*/
 	if (access_error(fsr, vma)) 
 	{
 		/*
-		* 如果是写，但是vma->vm_flag写没有set 1，说明的确是权限的问题，那么就set fault的值，退出。
+		* 如果发生一个写错误的缺页中断，首先判断vma属性是否具有可写属性，
+		* 如果没有，则返回VM_FAULT_BADACCESS
 		*/
 		fault = VM_FAULT_BADACCESS;
 		goto out;
 	}
 
+	//缺页中断核心处理函数	
 	return handle_mm_fault(vma, addr & PAGE_MASK, flags);
 
 check_stack:
@@ -329,8 +335,11 @@ do_page_fault(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 	 * 如果我们在中断中或者没有用户上下文，我们不准处理这个异常
 	 */
 	/*
-	* 判断发生异常的，in_atomic判断是否在原子操作中：中断程序，可延迟函数，禁用内核抢占的临界区
-	* !mm判断进程是否是内核线程
+		1. in_atomic:判断当前状态是否处于中断上下文或者禁止抢占状态，如果是，说明系统运行在原子上下文
+		（atomic context）中，那么跳转到no_context标签处的__do_kernel_fault
+		2. !mm判断进程是否是内核线程
+		   如果当前进程中没有struct mm_struct数据结构，说明这是一个内核线程，同样跳转到__do_kernel_fault
+		   函数中
 	*/
 	if (faulthandler_disabled() || !mm)
 	{
@@ -339,6 +348,7 @@ do_page_fault(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 		goto no_context;
 	}
 
+	//如果是用户模式，flags的FAULT_FLAG_USER置位	
 	if (user_mode(regs))
 		flags |= FAULT_FLAG_USER;
 	if (fsr & FSR_WRITE)
@@ -353,10 +363,20 @@ do_page_fault(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 	 * 但是，由于内核仅从代码的明确定义的区域有效地引用用户空间，
 	 * 所以如果这是来自不应该的代码，我们可以提早发现问题。
 	 */
-	if (!down_read_trylock(&mm->mmap_sem)) {
+	 
+	/*
+		down_read_trylock（）判断当前进程的mm->mmap_sem读写信号量是否可以获取，返回1则表示成功获得锁，
+		返回0则表示锁已经被别人占用
+		
+	*/	 
+	if (!down_read_trylock(&mm->mmap_sem))
+	{
+		//如果锁被占用，发生在内核空间		，并且 没有在exception tables中查询到该地址
+		//调用__do_kernel_fault函数	
 		if (!user_mode(regs) && !search_exception_tables(regs->ARM_pc))
 			goto no_context;
 retry:
+		//发生在用户空间的情况可以调用down_read()来睡眠，等待锁持有者释放该锁
 		down_read(&mm->mmap_sem);
 	} 
 	else
@@ -396,7 +416,8 @@ retry:
 	 */
 
 	perf_sw_event(PERF_COUNT_SW_PAGE_FAULTS, 1, regs, addr);
-	if (!(fault & VM_FAULT_ERROR) && flags & FAULT_FLAG_ALLOW_RETRY) {
+	if (!(fault & VM_FAULT_ERROR) && flags & FAULT_FLAG_ALLOW_RETRY)
+	{
 		if (fault & VM_FAULT_MAJOR) {
 			tsk->maj_flt++;
 			perf_sw_event(PERF_COUNT_SW_PAGE_FAULTS_MAJ, 1,
@@ -423,7 +444,8 @@ retry:
 	if (likely(!(fault & (VM_FAULT_ERROR | VM_FAULT_BADMAP | VM_FAULT_BADACCESS))))
 	{
 		/*
-		* 如果fault不是上面的值。那么就是MAJOR MINOR，说明问题解决了,return 
+		* 如果fault不是上面的值。那么就是MAJOR MINOR，说明问题解决了,return ,
+			缺页中断处理完成
 		* 如果是上面的值，那么就还要继续
 		*/
 		return 0;
@@ -431,7 +453,8 @@ retry:
 
 	/*
 	 * If we are in kernel mode at this point, we have no context to handle this fault with.
-	 * 如果在这个点我们在内核态，我们没有处理这个异常的上下文
+	 * 
+	 __do_page_fault()函数返回错误且当前处于内核模式，那么就跳转到__do_kernel_fault()来处理
 	 */
 	if (!user_mode(regs))
 	{
@@ -442,6 +465,11 @@ retry:
 		goto no_context;
 	}
 
+	/*
+			如果错误类型是VM_FAULT_OOM，说明当前系统没有足够的内存，那么调用
+		pagefault_out_of_memory函数来触发OOM机制。
+			最后调用__do_user_fault()来给用户进程发信号
+	*/
 	if (fault & VM_FAULT_OOM) 
 	{
 		/*

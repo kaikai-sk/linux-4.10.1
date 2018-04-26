@@ -1518,6 +1518,9 @@ struct tlbflush_unmap_batch {
 	bool writable;
 };
 
+/*
+	进程控制块PCB的结构体
+*/
 struct task_struct 
 {
 #ifdef CONFIG_THREAD_INFO_IN_TASK

@@ -1775,7 +1775,8 @@ static void shrink_readahead_size_eio(struct file *filp,
 /**
  * do_generic_file_read - generic file read routine
  * @filp:	the file to read
- * @ppos:	current file position
+ * @ppos:	current file position   
+ 			当前位置，字节为单位
  * @iter:	data destination
  * @written:	already copied
  *
@@ -1815,6 +1816,7 @@ static ssize_t do_generic_file_read(struct file *filp, loff_t *ppos,
 	index = *ppos >> PAGE_SHIFT;
 	prev_index = ra->prev_pos >> PAGE_SHIFT;
 	prev_offset = ra->prev_pos & (PAGE_SIZE-1);
+	//访问的最后一个页，但是不包括这个页
 	last_index = (*ppos + iter->count + PAGE_SIZE-1) >> PAGE_SHIFT;
 
 	/**

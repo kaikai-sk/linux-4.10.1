@@ -412,6 +412,10 @@ static __always_inline int PageMappingFlags(struct page *page)
 	return ((unsigned long)page->mapping & PAGE_MAPPING_FLAGS) != 0;
 }
 
+/*
+	PageAnon()这个宏来判断匿名页面。
+	用page->mapping成员的最低两位来做判断
+*/
 static __always_inline int PageAnon(struct page *page)
 {
 	page = compound_head(page);

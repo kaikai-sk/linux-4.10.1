@@ -940,21 +940,34 @@ bool reuse_swap_page(struct page *page, int *total_mapcount)
 	VM_BUG_ON_PAGE(!PageLocked(page), page);
 	if (unlikely(PageKsm(page)))
 		return false;
+	/*
+		通过page_mapcount()读取页面的_mapcount（）计数到变量count中。
+		并且返回“count是否<=1”.
+		count为1，表示只有一个进程映射了这个页面。
+	*/	
 	count = page_trans_huge_mapcount(page, total_mapcount);
-	if (count <= 1 && PageSwapCache(page)) {
+	/*
+		PageSwapCache()判断页面是否处于swap cache中
+	*/	
+	if (count <= 1 && PageSwapCache(page)) 
+	{
 		count += page_swapcount(page);
 		if (count != 1)
 			goto out;
-		if (!PageWriteback(page)) {
+		if (!PageWriteback(page)) 
+		{
 			delete_from_swap_cache(page);
 			SetPageDirty(page);
-		} else {
+		}
+		else 
+		{
 			swp_entry_t entry;
 			struct swap_info_struct *p;
 
 			entry.val = page_private(page);
 			p = swap_info_get(entry);
-			if (p->flags & SWP_STABLE_WRITES) {
+			if (p->flags & SWP_STABLE_WRITES) 
+			{
 				spin_unlock(&p->lock);
 				return false;
 			}

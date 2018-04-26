@@ -438,6 +438,11 @@ extern int __lock_page_or_retry(struct page *page, struct mm_struct *mm,
 				unsigned int flags);
 extern void unlock_page(struct page *page);
 
+/*
+	trylock_page()它使用test_and_set_bit_lock（）为page
+	的flags原子地设置PG_locked标志位，并发回这个标志位的原来值。
+	如果page的PG_locked位已经置位，那么当前进程调用trylock_page（）返回false，说明有别的进程已经锁住了这个page
+*/
 static inline int trylock_page(struct page *page)
 {
 	/*可以使用PageCompound函数来检测一个页是否是复合页，另外函数PageHead
@@ -451,6 +456,8 @@ static inline int trylock_page(struct page *page)
 
 /*
  * lock_page may only be called if we have the page's inode pinned.
+
+	lock_page()会睡眠等待所持有者释放该页锁
  */
 static inline void lock_page(struct page *page)
 {

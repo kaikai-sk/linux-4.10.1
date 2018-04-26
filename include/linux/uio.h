@@ -30,6 +30,7 @@ enum {
 struct iov_iter {
 	int type;
 	size_t iov_offset;
+	//请求的字节数
 	size_t count;
 	union {
 		const struct iovec *iov;

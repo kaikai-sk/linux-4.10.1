@@ -45,9 +45,12 @@ struct mem_cgroup;
 struct page 
 {
 	/* First double word block 
-		一组标识。也对页框所在的管理区进行编号
+		第一组双字编号的区块
 	*/
+	
 	/*
+	一组标识。也对页框所在的管理区进行编号
+	
 	在lru算法中主要用到两个标志
 	PG_active:表示此页当前是否活跃，当放到active_lru链表时被置位
 	PG_referenced:表示此页最近是否被访问，每次页面访问都会被置位
@@ -78,7 +81,9 @@ struct page
 	};
 
 
-	/* Second double word */
+	/* Second double word 
+		第二组双字编号的区块
+	*/
 	union 
 	{
 		/*
@@ -144,6 +149,7 @@ struct page
 
 	/*
 	 * Third double word block
+	 	第三组双字编号的区块
 	 *
 	 * WARNING: bit 0 of the first word encode PageTail(). That means
 	 * the rest users of the storage space MUST NOT use the bit to
@@ -215,7 +221,10 @@ struct page
 #endif
 	};
 
-	/* Remainder is not double word aligned */
+
+	/* Remainder is not double word aligned 
+		剩余的字节不是双字对齐
+	*/
 	union 
 	{
 		/*
@@ -525,12 +534,14 @@ struct mm_struct
 		指向线性区对象的链表头,链表是经过排序的，按线性地址升序排列，
 		里面映射了匿名映射线性区和文件映射线性区
 	*/
-	
 	struct vm_area_struct *mmap;		/* list of VMAs */
 	/*
 	* 指向线性区对象的红黑树的根
 	*/
 	struct rb_root mm_rb;
+
+
+	
 	u32 vmacache_seqnum;                   /* per-thread vmacache */
 #ifdef CONFIG_MMU
 	/*  在进程地址空间中找一个可以使用的线性地址空间，查找一个空闲的地址空间

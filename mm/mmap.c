@@ -476,10 +476,17 @@ static int find_vma_links(struct mm_struct *mm, unsigned long addr,
 {
 	struct rb_node **__rb_link, *__rb_parent, *rb_prev;
 
+	/*
+		__rb_link指向红黑树的根节点
+	*/
 	__rb_link = &mm->mm_rb.rb_node;
 	rb_prev = __rb_parent = NULL;
 
-	while (*__rb_link) {
+	/*
+		这个while循环，根据红黑树选择合适的插入位置
+	*/
+	while (*__rb_link) 
+	{
 		struct vm_area_struct *vma_tmp;
 
 		__rb_parent = *__rb_link;
@@ -498,8 +505,13 @@ static int find_vma_links(struct mm_struct *mm, unsigned long addr,
 
 	*pprev = NULL;
 	if (rb_prev)
+	{
+		//rb_prev指向带插入节点的前驱节点，这里获取前驱节点的结构体
 		*pprev = rb_entry(rb_prev, struct vm_area_struct, vm_rb);
+	}
+	//*rb_link指向__rb_parent->rb_left或者__rb_parent->rb_right指针本身的地址
 	*rb_link = __rb_link;
+	//*rb_parent指向找到带插入节点的父节点
 	*rb_parent = __rb_parent;
 	return 0;
 }
@@ -549,8 +561,11 @@ void __vma_link_rb(struct mm_struct *mm, struct vm_area_struct *vma,
 	 * (to be consistent with what we did on the way down), and then
 	 * immediately update the gap to the correct value. Finally we
 	 * rebalance the rbtree after all augmented values have been set.
+
+		红黑树的插入节点
 	 */
 	rb_link_node(&vma->vm_rb, rb_parent, rb_link);
+	
 	vma->rb_subtree_gap = 0;
 	vma_gap_update(vma);
 	vma_rb_insert(vma, &mm->mm_rb);
@@ -580,7 +595,9 @@ __vma_link(struct mm_struct *mm, struct vm_area_struct *vma,
 	struct vm_area_struct *prev, struct rb_node **rb_link,
 	struct rb_node *rb_parent)
 {
+	//插入到链表中
 	__vma_link_list(mm, vma, prev, rb_parent);
+	//插入到红黑树中
 	__vma_link_rb(mm, vma, rb_link, rb_parent);
 }
 
@@ -595,7 +612,9 @@ static void vma_link(struct mm_struct *mm, struct vm_area_struct *vma,
 		i_mmap_lock_write(mapping);
 	}
 
+	//添加到红黑树和链表中	
 	__vma_link(mm, vma, prev, rb_link, rb_parent);
+	//把vma添加到文件的radix tree中	
 	__vma_link_file(vma);
 
 	if (mapping)
@@ -1078,12 +1097,19 @@ can_vma_merge_after(struct vm_area_struct *vma, unsigned long vm_flags,
  * or other rmap walkers (if working on addresses beyond the "end"
  * parameter) may establish ptes with the wrong permissions of NNNN
  * instead of the right permissions of XXXX.
+
+ 将一个新的VMA和附近的VMA合并
  */
-struct vm_area_struct *vma_merge(struct mm_struct *mm,
-			struct vm_area_struct *prev, unsigned long addr,
-			unsigned long end, unsigned long vm_flags,
-			struct anon_vma *anon_vma, struct file *file,
-			pgoff_t pgoff, struct mempolicy *policy,
+struct vm_area_struct *vma_merge(struct mm_struct *mm,//mm是相关进程的struct mm_struct结构体
+			struct vm_area_struct *prev,//紧接着新VMA的前驱结点的VMA,一般通过find_vma_links()来获取
+			unsigned long addr, //新VMA的起始和结束地址
+			unsigned long end,
+			unsigned long vm_flags,//新VMA的标志位
+			struct anon_vma *anon_vma, //匿名映射的struct anon_vma数据结构
+			struct file *file,/* 如果新VMA属于一个文件映射，则参数file指向该文件struct file数据结构
+									*/
+			pgoff_t pgoff,//指定文件映射偏移量
+			struct mempolicy *policy,
 			struct vm_userfaultfd_ctx vm_userfaultfd_ctx)
 {
 	pgoff_t pglen = (end - addr) >> PAGE_SHIFT;
@@ -1093,14 +1119,19 @@ struct vm_area_struct *vma_merge(struct mm_struct *mm,
 	/*
 	 * We later require that vma->vm_flags == vm_flags,
 	 * so this tests vma->vm_flags & VM_SPECIAL, too.
+
+	 VM_SPECIAL指的是non-mergable和non-mlockable的VMAs
+	 主要指包含（VM_IO | VM_DONTEXPAND | VM_PFNMAP | VM_MIXEDMAP)标志位的VMAs
 	 */
 	if (vm_flags & VM_SPECIAL)
 		return NULL;
 
+	//如果新插入的节点有前驱节点	
 	if (prev)
 		next = prev->vm_next;
 	else
 		next = mm->mmap;
+	
 	area = next;
 	if (area && area->vm_end == end)		/* cases 6, 7, 8 */
 		next = next->vm_next;
@@ -1112,16 +1143,22 @@ struct vm_area_struct *vma_merge(struct mm_struct *mm,
 
 	/*
 	 * Can it merge with the predecessor?
+	 *
+	   是否可以和前驱节点合并？？？
 	 */
-	if (prev && prev->vm_end == addr &&
-			mpol_equal(vma_policy(prev), policy) &&
-			can_vma_merge_after(prev, vm_flags,
+	if (prev 
+			&& prev->vm_end == addr //要插入节点的起始地址和prev节点的结束地址相等
+			&& mpol_equal(vma_policy(prev), policy) 
+			&& can_vma_merge_after(prev, vm_flags, //判断prev节点是否可以被合并
 					    anon_vma, file, pgoff,
-					    vm_userfaultfd_ctx)) {
+					    vm_userfaultfd_ctx))
+	{
 		/*
 		 * OK, it can.  Can we now merge in the successor as well?
+
+		 判断是否可以和后继节点进行合并
 		 */
-		if (next && end == next->vm_start &&
+		if (next && end == next->vm_start && //理想情况，新插入节点的结束地址==next节点的起始地址
 				mpol_equal(policy, vma_policy(next)) &&
 				can_vma_merge_before(next, vm_flags,
 						     anon_vma, file,
@@ -1133,7 +1170,8 @@ struct vm_area_struct *vma_merge(struct mm_struct *mm,
 			err = __vma_adjust(prev, prev->vm_start,
 					 next->vm_end, prev->vm_pgoff, NULL,
 					 prev);
-		} else					/* cases 2, 5, 7 */
+		} 
+		else					/* cases 2, 5, 7 */
 			err = __vma_adjust(prev, prev->vm_start,
 					 end, prev->vm_pgoff, NULL, prev);
 		if (err)
@@ -2153,20 +2191,38 @@ get_unmapped_area(struct file *file, unsigned long addr, unsigned long len,
 
 EXPORT_SYMBOL(get_unmapped_area);
 
-/* Look up the first VMA which satisfies  addr < vm_end,  NULL if none. */
+/* Look up the first VMA which satisfies  addr < vm_end,  NULL if none. 
+	查找满足条件的VMA
+	1. addr在VMA的空间范围内：vma->vm_start <= addr < vma->vm_end
+	2. 距离addr最近 且 VMA的结束地址大于addr的一个VMA
+*/
 struct vm_area_struct *find_vma(struct mm_struct *mm, unsigned long addr)
 {
 	struct rb_node *rb_node;
 	struct vm_area_struct *vma;
 
-	/* Check the cache first. */
+	/* Check the cache first. 
+		find_vma()函数首先查找vma cache中的VMA是否满足要求
+
+		在task_struct结构中，有一个存放最近访问过的VMA的数组vmacache[VMACACHE_SIZE],
+		其中可以存放4个最近使用的VMA，充分利用了局部性原理。
+	*/
 	vma = vmacache_find(mm, addr);
+	
 	if (likely(vma))
 		return vma;
 
+	/*
+		如果vma cache中没有找到VMA，那么就遍历这个用户进程的mm_rb红黑树，
+		这个红黑树存放着该用户进程所有的VMA
+	*/
 	rb_node = mm->mm_rb.rb_node;
 
-	while (rb_node) {
+	/*
+		红黑树的查找操作
+	*/
+	while (rb_node) 
+	{
 		struct vm_area_struct *tmp;
 
 		tmp = rb_entry(rb_node, struct vm_area_struct, vm_rb);
@@ -2189,6 +2245,8 @@ EXPORT_SYMBOL(find_vma);
 
 /*
  * Same as find_vma, but also return a pointer to the previous VMA in *pprev.
+
+   返回VMA的前驱
  */
 struct vm_area_struct *
 find_vma_prev(struct mm_struct *mm, unsigned long addr,
@@ -3021,12 +3079,17 @@ void exit_mmap(struct mm_struct *mm)
 /* Insert vm structure into process list sorted by address
  * and into the inode's i_mmap tree.  If vm_file is non-NULL
  * then i_mmap_rwsem is taken here.
+
+ 	往mm的链表和红黑树中插入VMA
  */
 int insert_vm_struct(struct mm_struct *mm, struct vm_area_struct *vma)
 {
 	struct vm_area_struct *prev;
 	struct rb_node **rb_link, *rb_parent;
 
+	/*
+		find_vma_links查找要插入的位置
+	*/
 	if (find_vma_links(mm, vma->vm_start, vma->vm_end,
 			   &prev, &rb_link, &rb_parent))
 		return -ENOMEM;
@@ -3046,14 +3109,19 @@ int insert_vm_struct(struct mm_struct *mm, struct vm_area_struct *vma)
 	 * using the existing file pgoff checks and manipulations.
 	 * Similarly in do_mmap_pgoff and in do_brk.
 	 */
-	if (vma_is_anonymous(vma)) {
+	if (vma_is_anonymous(vma)) 
+	{
 		BUG_ON(vma->anon_vma);
 		vma->vm_pgoff = vma->vm_start >> PAGE_SHIFT;
 	}
 
+	/*
+		将VMA插入到链表和红黑树中
+	*/
 	vma_link(mm, vma, prev, rb_link, rb_parent);
 	return 0;
 }
+
 
 /*
  * Copy the vma structure to a new location in the same mm,
