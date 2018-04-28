@@ -761,7 +761,14 @@ static inline void get_page(struct page *page)
 	 * Getting a normal page or the head of a compound page
 	 * requires to already have an elevated page->_refcount.
 	 */
+	/*
+		利用VM_BUG_ON_PAGE()来判断页面的_count值不能小于等于0。
+		这是因为page伙伴分配系统分配好的页面初始值为1
+	*/
 	VM_BUG_ON_PAGE(page_ref_count(page) <= 0, page);
+	/*
+		直接使用atomic_inc()函数原子的增加引用计数
+	*/	
 	page_ref_inc(page);
 
 	if (unlikely(is_zone_device_page(page)))
@@ -772,9 +779,10 @@ static inline void put_page(struct page *page)
 {
 	page = compound_head(page);
 
+	//判断_refcount计数不能为0，如果为0，说明这个页面已经被释放了	
 	if (put_page_testzero(page))
 		__put_page(page);
-
+	//如果count计数减一之后等于0，就会调用__put_single_page来释放这个页面
 	if (unlikely(is_zone_device_page(page)))
 		put_zone_device_page(page);
 }

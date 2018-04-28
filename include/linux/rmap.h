@@ -35,7 +35,7 @@ struct anon_vma
 	*/
 	struct anon_vma *root;		/* Root of this anon_vma tree */
 	/*
-		读写信号量
+		保护anon_vma中链表的读写信号量
 	*/
 	struct rw_semaphore rwsem;	/* W: modification, R: walking the list */
 	/*
@@ -59,6 +59,9 @@ struct anon_vma
 	 */
 	unsigned degree;
 
+	/*
+		指向父anon_vma的数据结构
+	*/	
 	struct anon_vma *parent;	/* Parent of this anon_vma */
 
 	/*
@@ -89,6 +92,9 @@ struct anon_vma
  * The "rb" field indexes on an interval tree the anon_vma_chains
  * which link all the VMAs associated with this anon_vma.
  */
+/*
+	此数据结构是连接父子进程中的枢纽
+*/ 
 struct anon_vma_chain 
 {
 	//此结构所属的vma
@@ -300,12 +306,30 @@ int page_mapped_in_vma(struct page *page, struct vm_area_struct *vma);
  * anon_lock: for getting anon_lock by optimized way rather than default
  * invalid_vma: for skipping uninterested vma
  */
-struct rmap_walk_control {
+/*
+	内核中三种页面需要unmap操作，即KSM页面、匿名页面和文件映射页面，因此定义一个
+	rmap_walk_control控制数据结构来统一管理unmap操作，
+		这个结构体中定义了一些函数指针
+*/
+struct rmap_walk_control 
+{
 	void *arg;
+	/*
+		rmap_one表示具体断开某个VMA上映射的pte
+	*/	
 	int (*rmap_one)(struct page *page, struct vm_area_struct *vma,
 					unsigned long addr, void *arg);
+	/*
+		done 表示判断一个页面是否断开成功的条件
+	*/	
 	int (*done)(struct page *page);
+	/*
+		实现一个锁机制
+	*/	
 	struct anon_vma *(*anon_lock)(struct page *page);
+	/*
+		invalid_vma表示跳过无效的VMA
+	*/	
 	bool (*invalid_vma)(struct vm_area_struct *vma, void *arg);
 };
 

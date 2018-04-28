@@ -821,21 +821,43 @@ redo:
 	put_page(page);		/* drop ref from isolate */
 }
 
-enum page_references {
-	PAGEREF_RECLAIM,
+enum page_references 
+{
+	//下面这两个表示可以尝试回收该页面
+	PAGEREF_RECLAIM,		
 	PAGEREF_RECLAIM_CLEAN,
+	//表示会继续保留在不活跃链表中	
 	PAGEREF_KEEP,
+	//表示该页面会被迁移到活跃链表
 	PAGEREF_ACTIVATE,
 };
 
+/*
+	扫描不活跃LRU链表时，page_check_references()会被调用，返回值是一个page_references
+	枚举类型。
+
+	page_check_references（）函数的主要作用如下：
+		1. 如果有访问引用pte，那么：
+			(1). 该页是匿名页面，则加入活跃链表
+			(2). 最近第二次访问的page cache或shared page cache，则加入活跃链表
+			(3). 可执行文件的page cache，则加入活跃链表
+			(4). 除上述三种情况外，继续留在不活跃链表中，例如第一次访问的page cache
+		2. 如果没有访问引用pte，则表示可以尝试回收它
+*/
 static enum page_references page_check_references(struct page *page,
 						  struct scan_control *sc)
 {
 	int referenced_ptes, referenced_page;
 	unsigned long vm_flags;
-
+	/*
+		page_referenced（）检查该页有多少个访问引用pte（referenced_ptes）
+	*/	
 	referenced_ptes = page_referenced(page, 1, sc->target_mem_cgroup,
 					  &vm_flags);
+	/*
+		TestClearPageReferenced()函数返回该页面PG_referenced标志位的值
+		（referenced_page），并且清除该标志位
+	*/	
 	referenced_page = TestClearPageReferenced(page);
 
 	/*
@@ -845,7 +867,17 @@ static enum page_references page_check_references(struct page *page,
 	if (vm_flags & VM_LOCKED)
 		return PAGEREF_RECLAIM;
 
-	if (referenced_ptes) {
+	/*
+		当页面有访问引用pte时，要被放回到活跃LRU链表中的情况如下：
+			1. 该页是匿名页面
+			2. 最近第二次访问的page cache或共享的page cache
+			3. 可执行文件的page cache
+	*/	
+	if (referenced_ptes) 
+	{
+		/*
+			该页是匿名页面。要被放回到活跃LRU链表中
+		*/		
 		if (PageSwapBacked(page))
 			return PAGEREF_ACTIVATE;
 		/*
@@ -862,9 +894,14 @@ static enum page_references page_check_references(struct page *page,
 		 * so that recently deactivated but used pages are
 		 * quickly recovered.
 		 */
+		/*
+			
+		*/		
 		SetPageReferenced(page);
-
-		if (referenced_page || referenced_ptes > 1)
+		if (referenced_page || 
+			referenced_ptes > 1)  //referenced_ptes > 1表示那些第一次在不活跃链表中shared page cache，也就是说
+								  //如果有多个文件同时映射到该页面，他们应该晋升到活跃LRU链表中，因为它们应该多在LRU链表中一点时间，
+								  //以便其他用户可以再次访问到
 			return PAGEREF_ACTIVATE;
 
 		/*

@@ -912,8 +912,11 @@ copy_one_pte(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	pte = pte_mkold(pte);
 
 	page = vm_normal_page(vma, addr, pte);
-	if (page) {
+	if (page) 
+	{
+		//增加_refcount计数		
 		get_page(page);
+		//增加_mapcount计数
 		page_dup_rmap(page, false);
 		rss[mm_counter(page)]++;
 	}
@@ -2817,6 +2820,7 @@ static int do_anonymous_page(struct vm_fault *vmf)
 		return VM_FAULT_SIGBUS;
 
 	/* Check if we need to add a guard page to the stack 
+	
 		check_stack_guard_page（）函数判断当前VMA是否需要添加一个guard page作为安全垫
 	*/
 	if (check_stack_guard_page(vma, vmf->address) < 0)

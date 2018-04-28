@@ -551,6 +551,7 @@ free_tsk:
 	return NULL;
 }
 
+
 #ifdef CONFIG_MMU
 static __latent_entropy int dup_mmap(struct mm_struct *mm,
 					struct mm_struct *oldmm)
@@ -591,7 +592,12 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 		goto out;
 
 	prev = NULL;
-	for (mpnt = oldmm->mmap; mpnt; mpnt = mpnt->vm_next) {
+
+	/*
+		for循环遍历父进程的地址空间VMAs
+	*/	
+	for (mpnt = oldmm->mmap; mpnt; mpnt = mpnt->vm_next) 
+	{
 		struct file *file;
 
 		if (mpnt->vm_flags & VM_DONTCOPY) {
@@ -606,15 +612,27 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 				goto fail_nomem;
 			charge = len;
 		}
+
+		//新建一个临时使用的vm_area_struct数据结构tmp
 		tmp = kmem_cache_alloc(vm_area_cachep, GFP_KERNEL);
+
 		if (!tmp)
 			goto fail_nomem;
+		/*
+			把父进程的VMA数据结构内容复制到子进程刚创建的VMA数据结构tmp中
+		*/		
 		*tmp = *mpnt;
+		/*
+			初始化tmp VMA中的anon_vma_chain链表
+		*/		
 		INIT_LIST_HEAD(&tmp->anon_vma_chain);
 		retval = vma_dup_policy(mpnt, tmp);
 		if (retval)
 			goto fail_nomem_policy;
 		tmp->vm_mm = mm;
+		/*
+			为子进程创建相应的anon_vma数据结构
+		*/		
 		if (anon_vma_fork(tmp, mpnt))
 			goto fail_nomem_anon_vma_fork;
 		tmp->vm_flags &=
@@ -656,11 +674,17 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 		tmp->vm_prev = prev;
 		prev = tmp;
 
+		/*
+			把VMA添加到子进程的红黑树中
+		*/		
 		__vma_link_rb(mm, tmp, rb_link, rb_parent);
 		rb_link = &tmp->vm_rb.rb_right;
 		rb_parent = &tmp->vm_rb;
 
 		mm->map_count++;
+		/*
+			复制父进程的pte页表项到子进程页表项中
+		*/		
 		retval = copy_page_range(mm, oldmm, mpnt);
 
 		if (tmp->vm_ops && tmp->vm_ops->open)
@@ -669,6 +693,7 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 		if (retval)
 			goto out;
 	}
+	
 	/* a new mm has just been created */
 	arch_dup_mmap(oldmm, mm);
 	retval = 0;

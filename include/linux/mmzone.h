@@ -185,11 +185,20 @@ enum node_stat_item {
 #define LRU_ACTIVE 1
 #define LRU_FILE 2
 
-enum lru_list {
+/*
+	枚举各种lru链表的类型
+*/
+enum lru_list 
+{
+	//不活跃匿名页面链表
 	LRU_INACTIVE_ANON = LRU_BASE,
+	//活跃匿名页面链表	
 	LRU_ACTIVE_ANON = LRU_BASE + LRU_ACTIVE,
+	//不活跃文件映射页面链表	
 	LRU_INACTIVE_FILE = LRU_BASE + LRU_FILE,
+	//活跃文件映射页面链表	
 	LRU_ACTIVE_FILE = LRU_BASE + LRU_FILE + LRU_ACTIVE,
+	//不可回收页面链表
 	LRU_UNEVICTABLE,
 	NR_LRU_LISTS
 };
@@ -221,7 +230,9 @@ struct zone_reclaim_stat {
 	unsigned long		recent_scanned[2];
 };
 
-struct lruvec {
+
+struct lruvec 
+{
 	struct list_head		lists[NR_LRU_LISTS];
 	struct zone_reclaim_stat	reclaim_stat;
 	/* Evictions & activations on the inactive file list */
@@ -230,6 +241,7 @@ struct lruvec {
 	struct pglist_data *pgdat;
 #endif
 };
+
 
 /* Mask used at gathering information at once (see memcontrol.c) */
 #define LRU_ALL_FILE (BIT(LRU_INACTIVE_FILE) | BIT(LRU_ACTIVE_FILE))
@@ -750,6 +762,10 @@ typedef struct pglist_data
 #endif
 
 	/* Fields commonly accessed by the page reclaim scanner */
+	/*
+		LRU链表按照zone来配置（不过在这个版本里面，是按照node来配置的，所以在pglist_data结构体中）
+		也就是说每个zone中都有一整套lru链表，因此zone数据结构中有一个成员lruvec指向这些链表
+	*/	
 	struct lruvec		lruvec;
 
 	/*

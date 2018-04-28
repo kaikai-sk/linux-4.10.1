@@ -117,6 +117,10 @@ static __always_inline enum lru_list page_lru(struct page *page)
 	return lru;
 }
 
+/*
+	lru_to_page()使用了(head)->prev，从链表的末尾摘取页面，因此，LRU链表实现了先进先出（FIFO）算法。
+	最先进入LRU链表的页面，在LRU中的时间也会越长，老化时间也越长。
+*/
 #define lru_to_page(head) (list_entry((head)->prev, struct page, lru))
 
 #endif

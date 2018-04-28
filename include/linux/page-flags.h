@@ -105,9 +105,12 @@ enum pageflags
 	PG_mappedtodisk,	/* Has blocks allocated on-disk */
 	//为回收内存对页已经做了写入磁盘的标记
 	PG_reclaim,		/* To be reclaimed asap */
+	//页面支持RAM/swap
 	PG_swapbacked,		/* Page is backed by RAM/swap */
+	//页面是不可回收的
 	PG_unevictable,		/* Page is "unevictable"  */
 #ifdef CONFIG_MMU
+	//vma处于mlocked状态
 	PG_mlocked,		/* Page is vma mlocked */
 #endif
 #ifdef CONFIG_ARCH_USES_PG_UNCACHED

@@ -66,6 +66,7 @@ struct page
 			如果为空，则该页属于交换高速缓存（swap cache，swap时会产生竞争条件，用swap cache解决）
 			不为空，如果最低位为1，该页为匿名页，指向对应的anon_vma(分配时需要对齐)
 			不为空，如果最低位为0，则该页为文件页，指向文件的address_space
+
 			
 		*/
 		struct address_space *mapping;	/* If low bit clear, points to
@@ -75,6 +76,10 @@ struct page
 						 * it points to anon_vma object:
 						 * see PAGE_MAPPING_ANON below.
 						 */
+		/*
+			s_mem用于slab分配器，slab中第一个对象的开始地址，
+			s_mem和mapping共同占用一个字的存储空间
+		*/			 
 		void *s_mem;			/* slab first object */
 		atomic_t compound_mapcount;	/* first tail page */
 		/* page_deferred_list().next	 -- second tail page */
@@ -103,7 +108,8 @@ struct page
 
 	
 
-	union {
+union 
+{
 #if defined(CONFIG_HAVE_CMPXCHG_DOUBLE) && \
 	defined(CONFIG_HAVE_ALIGNED_STRUCT_PAGE)
 		/* Used for cmpxchg_double in slub */

@@ -14,7 +14,11 @@
 struct page;
 struct address_space;
 
-struct pagevec {
+/*
+	
+*/
+struct pagevec 
+{
 	unsigned long nr;
 	unsigned long cold;
 	struct page *pages[PAGEVEC_SIZE];
