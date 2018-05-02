@@ -236,6 +236,9 @@ struct lruvec
 	struct list_head		lists[NR_LRU_LISTS];
 	struct zone_reclaim_stat	reclaim_stat;
 	/* Evictions & activations on the inactive file list */
+	/*
+		用于Refault Distance算法，用于记录文件缓存在不活跃链表中的eviction和activation操作的计数
+	*/	
 	atomic_long_t			inactive_age;
 #ifdef CONFIG_MEMCG
 	struct pglist_data *pgdat;
@@ -639,6 +642,9 @@ struct bootmem_data;
 	每个节点中的物理内存又可以分为几个管理区（Zone）。
 	每个节点都有一个类行为pg_data_t的描述符。
 	所有节点的描述符存放在一个单向链表中，它的第一个元素有pgdat_list变量指向
+
+	每个node节点有一个pg_data_t数据结构来描述物理内存布局。kswapd传递的参数就是
+	struct pglist_data数据结构
 */
 typedef struct pglist_data 
 {
@@ -700,8 +706,11 @@ typedef struct pglist_data
 		节点标识符
 	*/
 	int node_id;
+
 	/*
 		kswapd页换出守护进程使用的等待队列
+		每个pg_data_t数据结构都有这样一个等待对列，它是在free_area_init_core（）函数中初始化的
+		
 	*/
 	wait_queue_head_t kswapd_wait;
 	wait_queue_head_t pfmemalloc_wait;

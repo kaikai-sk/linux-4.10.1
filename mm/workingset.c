@@ -241,6 +241,10 @@ bool workingset_refault(void *shadow)
 	struct pglist_data *pgdat;
 	int memcgid;
 
+	/*
+		unpack_shadow()函数只把该page cache之前存放的shadow值重新解码，
+		得到了第一次访问时的inactive_age值T1，然后把当前的inactive_age值减去T1，得到Refault Distance
+	*/
 	unpack_shadow(shadow, &memcgid, &pgdat, &eviction);
 
 	rcu_read_lock();
@@ -290,7 +294,12 @@ bool workingset_refault(void *shadow)
 
 	inc_node_state(pgdat, WORKINGSET_REFAULT);
 
-	if (refault_distance <= active_file) {
+	/*
+		判断refault_distance 是否<= active_file（活跃LRU链表的长度）。
+		如果是，则说明该页在下一次访问前极有可能会被踢出LRU链表，因此返回true
+	*/	
+	if (refault_distance <= active_file) 
+	{
 		inc_node_state(pgdat, WORKINGSET_ACTIVATE);
 		return true;
 	}
@@ -318,6 +327,7 @@ void workingset_activation(struct page *page)
 	if (!mem_cgroup_disabled() && !memcg)
 		goto out;
 	lruvec = mem_cgroup_lruvec(page_pgdat(page), memcg);
+	//增加inactive_age计数，用于Refault Distance算法
 	atomic_long_inc(&lruvec->inactive_age);
 out:
 	rcu_read_unlock();

@@ -384,6 +384,11 @@ struct anon_vma *page_anon_vma(struct page *page)
 	return __page_rmapping(page);
 }
 
+/*
+	如果page属于slab或者是匿名页面，page_mapping函数返回mapping为空。
+	如果是PageSwapCache(),则返回swap_address_space空间，
+	其余为page cache的情况，直接返回page->mapping
+*/
 struct address_space *page_mapping(struct page *page)
 {
 	struct address_space *mapping;

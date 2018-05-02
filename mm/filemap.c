@@ -681,6 +681,10 @@ int add_to_page_cache_locked(struct page *page, struct address_space *mapping,
 }
 EXPORT_SYMBOL(add_to_page_cache_locked);
 
+/*
+	page cache第一次加入到radix_tree时会分配一个slot来存放inactive_age,这里使用shadow指向slot。
+	因此第一次加入时shadow值为空，还没有Refault Distance，因此加入到不活跃LRU链表
+*/
 int add_to_page_cache_lru(struct page *page, struct address_space *mapping,
 				pgoff_t offset, gfp_t gfp_mask)
 {
@@ -702,7 +706,14 @@ int add_to_page_cache_lru(struct page *page, struct address_space *mapping,
 		 * get overwritten with something else, is a waste of memory.
 		 */
 		if (!(gfp_mask & __GFP_WRITE) &&
-		    shadow && workingset_refault(shadow)) {
+		    shadow && 
+		    	workingset_refault(shadow)) //当page cache第二次读取时，还会调用到add_to_page_cache_lru()函数，workingset_refault（）
+		    								//会计算出Refault Distance，并且判断是否需要把page cache加入到活跃链表中，
+											//以避免下一次读之前被踢出LRU链表
+		{
+			/*
+				设置该页的PG_active标志位并加入到活跃LRU链表中，从而避免第三次访问时该页被踢出LRU链表所产生的内存抖动
+			*/			
 			SetPageActive(page);
 			workingset_activation(page);
 		} else
