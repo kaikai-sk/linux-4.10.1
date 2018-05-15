@@ -48,13 +48,27 @@
  * - detects multi-task circular deadlocks and prints out all affected
  *   locks and tasks (and only those tasks)
  */
-struct mutex {
+ 
+struct mutex 
+{
+	/*
+		要打开CONFIG_MUTEX_SPIN_ON_OWNER选项才会有owner，用于指向锁持有者的task_struct数据结构
+	*/
 	atomic_long_t		owner;
+	//用于保护wait_list
 	spinlock_t		wait_lock;
 #ifdef CONFIG_MUTEX_SPIN_ON_OWNER
+	/*
+		用于实现MCS锁机制
+	*/	
 	struct optimistic_spin_queue osq; /* Spinner MCS lock */
 #endif
+
+	/*
+		用于管理所有在该Mutex上睡眠的进程，没有成功获取锁的进程会睡眠在此链表上
+	*/	
 	struct list_head	wait_list;
+
 #ifdef CONFIG_DEBUG_MUTEXES
 	void			*magic;
 #endif

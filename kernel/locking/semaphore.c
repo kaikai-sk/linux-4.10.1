@@ -77,11 +77,24 @@ int down_interruptible(struct semaphore *sem)
 	unsigned long flags;
 	int result = 0;
 
+	/*
+		在某些中断处理函数中可能会操作该信号量，
+		所以需要关闭本地CPU中断
+	*/	
 	raw_spin_lock_irqsave(&sem->lock, flags);
+	/*
+		sem->count > 0则表明当前进程可以成功的获得信号量
+	*/	
 	if (likely(sem->count > 0))
 		sem->count--;
 	else
+	{
+		/*
+			无法获得信号量。
+			调用__down_interruptible()函数来执行睡眠等待操作
+		*/		
 		result = __down_interruptible(sem);
+	}
 	raw_spin_unlock_irqrestore(&sem->lock, flags);
 
 	return result;
@@ -180,10 +193,19 @@ void up(struct semaphore *sem)
 	unsigned long flags;
 
 	raw_spin_lock_irqsave(&sem->lock, flags);
+	/*
+		如果信号量上的等待对列wait-list为空，说明没有进程在等待该信号量，
+		所以sem->count直接++
+	*/	
 	if (likely(list_empty(&sem->wait_list)))
 		sem->count++;
 	else
+	{	
+		/*
+			有进程在等待队列里睡眠，需要唤醒他们
+		*/
 		__up(sem);
+	}
 	raw_spin_unlock_irqrestore(&sem->lock, flags);
 }
 EXPORT_SYMBOL(up);
@@ -205,21 +227,46 @@ static inline int __sched __down_common(struct semaphore *sem, long state,
 								long timeout)
 {
 	struct task_struct *task = current;
+
+	/*
+		用于描述获取信号量失败的进程。
+		每个进程都会有一个semaphore_waiter数据结构，并且把当前进程放到信号量sem的成员变量wait_list链表中
+	*/
 	struct semaphore_waiter waiter;
 
 	list_add_tail(&waiter.list, &sem->wait_list);
 	waiter.task = task;
 	waiter.up = false;
 
-	for (;;) {
+	
+	for (;;) 
+	{
 		if (signal_pending_state(state, task))
 			goto interrupted;
 		if (unlikely(timeout <= 0))
 			goto timed_out;
+		/*
+			将当前进程的task_struct状态设置成TASK_INTERRUPTIBLE,
+			
+		*/		
 		__set_task_state(task, state);
+		/*
+			spinlock临界区绝对不能睡眠，所以这里在调用schedule_timeout（）主动出让
+			CPU之前，先调用raw_spin_unlock_irq（）释放了锁。
+		*/		
 		raw_spin_unlock_irq(&sem->lock);
+		/*
+			然后调用schedule_timeout()主动出让CPU，相当于当前进程睡眠
+		*/		
 		timeout = schedule_timeout(timeout);
+
+		/*
+			进程睡眠醒来之后补加一把锁
+		*/		
 		raw_spin_lock_irq(&sem->lock);
+		/*
+			waiter.up为true时，说明睡眠在wait_list队列中的进程被该信号量的UP操作唤醒
+		*/		
 		if (waiter.up)
 			return 0;
 	}
@@ -240,7 +287,10 @@ static noinline void __sched __down(struct semaphore *sem)
 
 static noinline int __sched __down_interruptible(struct semaphore *sem)
 {
-	return __down_common(sem, TASK_INTERRUPTIBLE, MAX_SCHEDULE_TIMEOUT);
+	return __down_common(
+		sem, 
+		TASK_INTERRUPTIBLE, 
+		MAX_SCHEDULE_TIMEOUT);//time参数是一个很大的LONG_MAX
 }
 
 static noinline int __sched __down_killable(struct semaphore *sem)
@@ -253,11 +303,19 @@ static noinline int __sched __down_timeout(struct semaphore *sem, long timeout)
 	return __down_common(sem, TASK_UNINTERRUPTIBLE, timeout);
 }
 
+//
 static noinline void __sched __up(struct semaphore *sem)
 {
+	//拿到第一个正在等待的成员waiter	
 	struct semaphore_waiter *waiter = list_first_entry(&sem->wait_list,
 						struct semaphore_waiter, list);
 	list_del(&waiter->list);
+	/*
+		将waiter->up设置为true。
+		在down()函数中，waiter->task进程醒来后会判断waiter->up变量是否为true，
+		如果为true，则直接返回0，表示进程成功获取了该信号量。
+	*/
 	waiter->up = true;
+	//wake_up_process唤醒waier->task进程
 	wake_up_process(waiter->task);
 }

@@ -716,7 +716,8 @@ static bool should_defer_flush(struct mm_struct *mm, enum ttu_flags flags)
 unsigned long page_address_in_vma(struct page *page, struct vm_area_struct *vma)
 {
 	unsigned long address;
-	if (PageAnon(page)) {
+	if (PageAnon(page))
+	{
 		struct anon_vma *page__anon_vma = page_anon_vma(page);
 		/*
 		 * Note: swapoff's unuse_vma() is more efficient with this
@@ -725,7 +726,9 @@ unsigned long page_address_in_vma(struct page *page, struct vm_area_struct *vma)
 		if (!vma->anon_vma || !page__anon_vma ||
 		    vma->anon_vma->root != page__anon_vma->root)
 			return -EFAULT;
-	} else if (page->mapping) {
+	}
+	else if (page->mapping) 
+	{
 		if (!vma->vm_file || vma->vm_file->f_mapping != page->mapping)
 			return -EFAULT;
 	} else

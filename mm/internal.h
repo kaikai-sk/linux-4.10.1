@@ -319,6 +319,9 @@ extern pmd_t maybe_pmd_mkwrite(pmd_t pmd, struct vm_area_struct *vma);
 /*
  * At what user virtual address is page expected in @vma?
  */
+/*
+	page结构中有一个成员index，表示在VMA中的偏移量，由此可以得出虚拟地址
+*/ 
 static inline unsigned long
 __vma_address(struct page *page, struct vm_area_struct *vma)
 {

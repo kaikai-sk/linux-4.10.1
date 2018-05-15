@@ -130,12 +130,19 @@ static inline int atomic_cmpxchg_relaxed(atomic_t *ptr, int old, int new)
 }
 #define atomic_cmpxchg_relaxed		atomic_cmpxchg_relaxed
 
+/*
+	ldrex和strex指令来保证add操作的原子性。
+	指令后缀ex标志exclusive
+*/
 static inline int __atomic_add_unless(atomic_t *v, int a, int u)
 {
 	int oldval, newval;
 	unsigned long tmp;
 
 	smp_mb();
+	/*
+		prefetchw提前把原子变量的值加载到cache中，以便提高性能
+	*/	
 	prefetchw(&v->counter);
 
 	__asm__ __volatile__ ("@ atomic_add_unless\n"

@@ -70,6 +70,7 @@ static inline void arch_spin_unlock_wait(arch_spinlock_t *lock)
 
 #define arch_spin_lock_flags(lock, flags) arch_spin_lock(lock)
 
+
 static inline void arch_spin_lock(arch_spinlock_t *lock)
 {
 	unsigned long tmp;
@@ -77,23 +78,31 @@ static inline void arch_spin_lock(arch_spinlock_t *lock)
 	arch_spinlock_t lockval;
 
 	prefetchw(&lock->slock);
+	//把lock->slock的值加载到lockval中，lockval中的next域加1，并保存到newval变量中
+	//然后把newval的值写入到lock->slock中，也就是增加锁中next域的值，也就是next++	
 	__asm__ __volatile__(
 "1:	ldrex	%0, [%3]\n"
 "	add	%1, %0, %4\n"
 "	strex	%2, %1, [%3]\n"
 "	teq	%2, #0\n"
 "	bne	1b"
-	: "=&r" (lockval), "=&r" (newval), "=&r" (tmp)
+	: "=&r" (lockval), "=&r" (newval), "=&r" (tmp)	
 	: "r" (&lock->slock), "I" (1 << TICKET_SHIFT)
 	: "cc");
 
-	while (lockval.tickets.next != lockval.tickets.owner) {
+	/*
+		判断lockval中的next域和owner域是否相等
+	*/
+	while (lockval.tickets.next != lockval.tickets.owner) 
+	{
+		//如果不相等就调用wfe指令，让cpu进入等待状态	
 		wfe();
 		lockval.tickets.owner = ACCESS_ONCE(lock->tickets.owner);
 	}
 
 	smp_mb();
 }
+
 
 static inline int arch_spin_trylock(arch_spinlock_t *lock)
 {
@@ -123,8 +132,16 @@ static inline int arch_spin_trylock(arch_spinlock_t *lock)
 
 static inline void arch_spin_unlock(arch_spinlock_t *lock)
 {
+	/*
+		首先调用smp_mb()内存屏障指令，保证调用该函数之前所有访问内存的指令都执行完成。
+	*/
 	smp_mb();
 	lock->tickets.owner++;
+	/*
+		此函数有两个作用：
+		1. 调用dsb指令保证owner域已经写入内存中
+		2. 执行SEV指令来唤醒通过WFE指令进入睡眠状态的CPU
+	*/	
 	dsb_sev();
 }
 

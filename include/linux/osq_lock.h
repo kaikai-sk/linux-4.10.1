@@ -5,13 +5,28 @@
  * An MCS like lock especially tailored for optimistic spinning for sleeping
  * lock implementations (mutex, rwsem, etc).
  */
-struct optimistic_spin_node {
+/*
+	本地CPU上的节点	。
+	optimistic_spin_node数据结构会被定义成per-CPU变量，即每个CPU都有一个node结构
+*/ 
+struct optimistic_spin_node 
+{
+	/*
+		双向链表指针
+	*/	
 	struct optimistic_spin_node *next, *prev;
+	/*
+		表示加锁状态
+	*/	
 	int locked; /* 1 if lock acquired */
+	/*
+		重新编码CPU编号
+	*/	
 	int cpu; /* encoded CPU # + 1 value */
 };
 
-struct optimistic_spin_queue {
+struct optimistic_spin_queue 
+{
 	/*
 	 * Stores an encoded value of the CPU # of the tail node in the queue.
 	 * If the queue is empty, then it's set to OSQ_UNLOCKED_VAL.

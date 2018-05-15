@@ -1738,12 +1738,15 @@ static netdev_tx_t rtl8139_start_xmit (struct sk_buff *skb,
 	}
 
 	spin_lock_irqsave(&tp->lock, flags);
+
 	/*
 	 * Writing to TxStatus triggers a DMA transfer of the data
 	 * copied to tp->tx_buf[entry] above. Use a memory barrier
 	 * to make sure that the device sees the updated data.
 	 */
+	//写内存屏障，用于SMP和UP	
 	wmb();
+	
 	RTL_W32_F (TxStatus0 + (entry * sizeof (u32)),
 		   tp->tx_flag | max(len, (unsigned int)ETH_ZLEN));
 

@@ -327,6 +327,10 @@ do {									\
 	raw_spin_lock_nest_lock(spinlock_check(lock), nest_lock);	\
 } while (0)
 
+/*
+	获得spinlock时关闭本地CPU中断.
+	spin_lock_irq主要防止本地中断处理程序和锁持有者之间的锁的争用。
+*/
 static __always_inline void spin_lock_irq(spinlock_t *lock)
 {
 	raw_spin_lock_irq(&lock->rlock);

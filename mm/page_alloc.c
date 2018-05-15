@@ -3169,6 +3169,9 @@ out:
 
 #ifdef CONFIG_COMPACTION
 /* Try memory compaction for high-order allocations before reclaim */
+/*
+
+*/
 static struct page *
 __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 		unsigned int alloc_flags, const struct alloc_context *ac,
@@ -3176,10 +3179,17 @@ __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 {
 	struct page *page;
 
+	/*
+		内存规整是针对high_order的内存分配，所以order==0的情况不需要触发内存规整
+	*/
 	if (!order)
 		return NULL;
 
 	current->flags |= PF_MEMALLOC;
+	/*
+		try_to_compact_pages()函数执行时需要设置当前进程的PF_MEMALLOC标志，该标志
+		会在页面迁移的时候用到，避免页面锁（PG_locked）发生死锁
+	*/	
 	*compact_result = try_to_compact_pages(gfp_mask, order, alloc_flags, ac,
 									prio);
 	current->flags &= ~PF_MEMALLOC;
@@ -3193,6 +3203,9 @@ __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 	 */
 	count_vm_event(COMPACTSTALL);
 
+	/*
+		当内存规整执行完成后，调用get_page_from_freelist()来尝试分配内存，如果分配成功将返回首页page的数据结构
+	*/	
 	page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
 
 	if (page) {

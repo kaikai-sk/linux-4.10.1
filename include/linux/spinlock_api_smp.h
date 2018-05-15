@@ -125,6 +125,10 @@ static inline unsigned long __raw_spin_lock_irqsave(raw_spinlock_t *lock)
 
 static inline void __raw_spin_lock_irq(raw_spinlock_t *lock)
 {
+	/*
+		关闭本地处理器中断，
+		这样可以保证在获取spinlock锁时可以确保不会发生中断，从而避免发生死锁问题
+	*/
 	local_irq_disable();
 	preempt_disable();
 	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
@@ -141,6 +145,11 @@ static inline void __raw_spin_lock_bh(raw_spinlock_t *lock)
 static inline void __raw_spin_lock(raw_spinlock_t *lock)
 {
 	preempt_disable();
+	/*
+		如果系统没有打开CONFIG_LOCKEDP和CONFIG_LOCK_STAT选项，
+		spin_acquire()函数其实是一个空函数，并且LOCK_CONTENDED()
+		只是直接调用do_raw_spin_lock()函数
+	*/	
 	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
 	LOCK_CONTENDED(lock, do_raw_spin_trylock, do_raw_spin_lock);
 }
